@@ -1,0 +1,55 @@
+
+button {
+    height: 30px;
+    width: 100px;
+    color: white;
+    background-color: #ff5e1a;
+    border-radius: 3px;
+    text-justify: center;
+}
+
+button:hover {
+    background-color: #ff7033;
+}
+
+label {
+    width: 110px;
+    height: 30px;
+    color: white;
+    text-justify: left;
+}
+
+.checklist {
+    margin: 10px;
+    flex-direction: row;
+    align-self: flex-start;
+}
+
+.checklist>button {
+    height: 30px;
+    width: 40px;
+    background-color: #5a5a5a;
+    color: white;
+    border-radius: 0px;
+}
+
+.checklist>button:hover {
+    background-color: #696969;
+}
+
+.checklist>button:checked {
+    background-color: #ff5e1a;
+}
+.checklist>button.first {
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.checklist>button.last {
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.checklist>button.play {
+    color: #ff5e1a;
+}
