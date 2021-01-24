@@ -7,6 +7,8 @@ const ICON_TO_START: &str = "\u{23ee}";
 const ICON_PLAY: &str = "\u{25b6}";
 const ICON_STOP: &str = "\u{25a0}";
 const ICON_TO_END: &str = "\u{23ed}";
+const ICON_PLUS: &str = "\u{2b}";
+const ICON_MINUS: &str = "\u{2d}";
 
 use tuix::*;
 
@@ -57,13 +59,26 @@ impl From<f32> for TimeValue {
 }
 
 fn main() {
+
+
+    
+
     let app = Application::new(|win_desc, state, window| {
+
+        
+        
+
 
         state.insert_stylesheet("src/theme.css").expect("Failed to load stylesheet");
 
         window.set_background_color(state, Color::rgb(40,40,40));
         
-        AppWidget::new().build(state, window, |builder| builder.class("app"));
+        let app_widget = AppWidget::new().build(state, window, |builder| builder.class("app"));
+
+        let args: Vec<String> = std::env::args().collect();
+        if args.len() > 1 {
+            state.insert_event(Event::new(AppEvent::LoadAudioFile(args[1].clone())).target(app_widget));
+        }
 
         win_desc.with_title("Waveform Viewer").with_inner_size(1000, 600)
     });
@@ -95,6 +110,7 @@ pub enum UnitsMode {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppEvent {
     OpenFileDialog,
+    LoadAudioFile(String),
     SwicthChannel(ChannelMode),
     SwitchUnits(UnitsMode),
 }
@@ -292,7 +308,7 @@ impl BuildHandler for AppWidget {
 
         // Open file button
         Button::new().on_release(Event::new(AppEvent::OpenFileDialog)).build(state, header, |builder| {
-            builder.set_text("Open").set_margin(Length::Pixels(10.0))
+            builder.set_text("Open").set_margin(Length::Pixels(10.0)).class("open")
         });
 
 
@@ -300,22 +316,22 @@ impl BuildHandler for AppWidget {
 
         // To start button
         Button::new().build(state, transport, |builder| {
-            builder.set_text(ICON_TO_START).class("first")
+            builder.set_text(ICON_TO_START).set_font("Icons".to_string()).class("first")
         });
 
         // Play button
         let play =  Button::new().build(state, transport, |builder| {
-            builder.set_text(ICON_PLAY).class("play")
+            builder.set_text(ICON_PLAY).set_font("Icons".to_string()).class("play")
         });
 
         // Stop button
         Button::new().build(state, transport, |builder| {
-            builder.set_text(ICON_STOP)
+            builder.set_text(ICON_STOP).set_font("Icons".to_string())
         });
 
         // To end button
         Button::new().build(state, transport, |builder| {
-            builder.set_text(ICON_TO_END).class("last")
+            builder.set_text(ICON_TO_END).set_font("Icons".to_string()).class("last")
         });
 
         // Channels selector
@@ -354,7 +370,10 @@ impl BuildHandler for AppWidget {
             builder.set_text("dB").class("last")
         });
 
-        //Button::new().build(state, entity, |builder| builder.class("zoom"));
+        let zoom_controls = Element::new().build(state, footer, |builder| builder.class("zoom_controls"));
+        Button::with_label(ICON_MINUS).build(state, zoom_controls, |builder| builder.set_font("Icons".to_string()).class("zoom").class("first"));
+        Label::new("100%").build(state, zoom_controls, |builder| builder.class("zoom"));
+        Button::with_label(ICON_PLUS).build(state, zoom_controls, |builder| builder.set_font("Icons".to_string()).class("zoom").class("last"));
 
 
         entity
@@ -387,7 +406,7 @@ impl EventHandler for AppWidget {
                         
                         self.zoom_pos = self.start + (self.samples_per_pixel.round() * self.zoom_pos_pixel) as i32;
 
-                        if self.zoom_pos > self.left_channel.len() as i32 {
+                        if self.zoom_pos >= self.left_channel.len() as i32 {
                             self.zoom_pos = self.left_channel.len() as i32 - 1;
                         }
 
@@ -436,8 +455,6 @@ impl EventHandler for AppWidget {
 
                             let total_samples = (state.transform.get_width(entity) * self.samples_per_pixel.round()) as i32;
 
-                            let zoom_samples = (self.zoom_pos as f32 / (ZOOM_LEVELS[self.zoom_level]/ZOOM_LEVELS[self.zoom_level - 1])) as i32;
-
                             let mut new_start = 0;
                             let mut new_end = total_samples;                        
 
@@ -447,8 +464,8 @@ impl EventHandler for AppWidget {
                             new_end += offset;
                            
 
-                            self.start = new_start.max(0);
-                            self.end = new_end.min(self.left_channel.len() as i32);
+                            self.start = new_start.max(0).min(self.left_channel.len() as i32 - 1);
+                            self.end = new_end.min(self.left_channel.len() as i32 - 1);
 
 
                         } else {
@@ -464,7 +481,7 @@ impl EventHandler for AppWidget {
                             //     new_start = new_start - offset;
                             // }   
                             
-                            self.start = new_start.max(0).min(self.left_channel.len() as i32);
+                            self.start = new_start.max(0).min(self.end);
 
                             //self.end = new_end.min(self.left_channel.len() as i32);
                         }
@@ -512,7 +529,7 @@ impl EventHandler for AppWidget {
                             //     new_start = 0;
                             // }     
                             
-                            self.start = new_start.max(0);
+                            self.start = new_start.max(0).min(self.left_channel.len() as i32 - 1);
                             //self.end = new_end.min(self.left_channel.len() as i32);
 
                         }
@@ -528,6 +545,21 @@ impl EventHandler for AppWidget {
 
         if let Some(app_event) = event.message.downcast::<AppEvent>() {
             match app_event {
+
+                AppEvent::LoadAudioFile(file_path) => {
+                    self.read_audio(file_path);
+
+                    let num_samples = self.left_channel.len();
+
+                    let samples_per_pixel = 220.0;
+
+                    println!("Calculated Samples Per Pixel: {}", samples_per_pixel);
+                    self.end = (state.transform.get_width(entity) * samples_per_pixel).ceil() as i32;
+                    if self.end > self.left_channel.len() as i32 {
+                        self.end = self.left_channel.len() as i32;
+                    }
+                }
+
                 AppEvent::OpenFileDialog => {
 
                     // Use this if nfd not working
@@ -557,7 +589,7 @@ impl EventHandler for AppWidget {
 
                                 let samples_per_pixel = 220.0;
 
-                                println!("Calculated Samples Per Pixel: {}", samples_per_pixel);
+                                //println!("Calculated Samples Per Pixel: {}", samples_per_pixel);
                                 self.end = (state.transform.get_width(entity) * samples_per_pixel).ceil() as i32;
                                 if self.end > self.left_channel.len() as i32 {
                                     self.end = self.left_channel.len() as i32;

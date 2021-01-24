@@ -5,21 +5,30 @@
     height: 50px;
 }
 
+.footer {
+    flex-direction: row;
+    height: 50px;
+    justify-content: flex-end;
+}
+
 .waveview {
     background-color: red;
     flex-grow: 1.0;
 }
 
 button {
-    height: 30px;
-    width: 100px;
-    color: white;
-    background-color: #ff5e1a;
-    border-radius: 3px;
     text-justify: center;
+    color: white;
 }
 
-button:hover {
+button.open {
+    height: 30px;
+    width: 100px;
+    background-color: #ff5e1a;
+    border-radius: 3px;
+}
+
+button.open:hover {
     background-color: #ff7033;
 }
 
@@ -51,12 +60,13 @@ label {
 .checklist>button:checked {
     background-color: #ff5e1a;
 }
-.checklist>button.first {
+
+button.first {
     border-top-left-radius: 3px;
     border-bottom-left-radius: 3px;
 }
 
-.checklist>button.last {
+button.last {
     border-top-right-radius: 3px;
     border-bottom-right-radius: 3px;
 }
@@ -65,12 +75,22 @@ label {
     color: #ff5e1a;
 }
 
+.zoom_controls {
+    margin: 10px;
+    flex-direction: row;
+}
+
 .zoom {
     width: 30px;
     height: 30px;
-    position: absolute;
-    right: 0px;
-    bottom: 0px;
     background-color: #5a5a5a;
-    margin: 10px;
+}
+
+.zoom:hover {
+    background-color: #696969;
+}
+
+label.zoom {
+    width: 50px;
+    text-justify: center;
 }
