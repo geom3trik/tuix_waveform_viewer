@@ -446,17 +446,18 @@ impl EventHandler for AppWidget {
                          
                         
                             let mut new_start  = self.start + (self.samples_per_pixel * 30.0) as i32;
-                            let mut new_end =  self.end + (self.samples_per_pixel * 30.0) as i32;
+                            //let mut new_end =  self.end + (self.samples_per_pixel * 30.0) as i32;
 
 
-                            let offset = new_end - self.left_channel.len() as i32;
-                            if offset > 0 {
-                                new_end = self.left_channel.len() as i32;
-                                new_start = new_start - offset;
-                            }   
+                            // let offset = new_end - self.left_channel.len() as i32;
+                            // if offset > 0 {
+                            //     new_end = self.left_channel.len() as i32;
+                            //     new_start = new_start - offset;
+                            // }   
                             
-                            self.start = new_start.max(0);
-                            self.end = new_end.min(self.left_channel.len() as i32);
+                            self.start = new_start.max(0).min(self.left_channel.len() as i32);
+
+                            //self.end = new_end.min(self.left_channel.len() as i32);
                         }
 
 
@@ -494,16 +495,16 @@ impl EventHandler for AppWidget {
                         } else {
                            
                             let mut new_start = self.start - (self.samples_per_pixel * 30.0) as i32;
-                            let mut new_end = self.end - (self.samples_per_pixel * 30.0) as i32;
+                            //let mut new_end = self.end - (self.samples_per_pixel * 30.0) as i32;
 
-                            let offset = 0 - new_start;
-                            if offset > 0 {
-                                new_end = new_end + offset;
-                                new_start = 0;
-                            }     
+                            // let offset = 0 - new_start;
+                            // if offset > 0 {
+                            //     new_end = new_end + offset;
+                            //     new_start = 0;
+                            // }     
                             
                             self.start = new_start.max(0);
-                            self.end = new_end.min(self.left_channel.len() as i32);
+                            //self.end = new_end.min(self.left_channel.len() as i32);
 
                         }
 
