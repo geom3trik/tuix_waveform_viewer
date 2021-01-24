@@ -10,9 +10,7 @@ const ICON_TO_END: &str = "\u{23ed}";
 
 use tuix::*;
 
-extern crate nfd2;
-
-use nfd2::Response;
+use native_dialog::{FileDialog};
 
 use std::{cmp::Ordering, println};
 
@@ -64,7 +62,7 @@ fn main() {
         state.insert_stylesheet("src/theme.css").expect("Failed to load stylesheet");
 
         window.set_background_color(state, Color::rgb(40,40,40));
-
+        
         AppWidget::new().build(state, window, |builder| builder.class("app"));
 
         win_desc.with_title("Waveform Viewer").with_inner_size(1000, 600)
@@ -122,6 +120,8 @@ pub struct AppWidget {
 
     time_label: Entity,
     value_label: Entity,
+
+    waveview: Entity,
 }
 
 impl AppWidget {
@@ -145,6 +145,7 @@ impl AppWidget {
 
             time_label: Entity::null(),
             value_label: Entity::null(),
+            waveview: Entity::null(),
             
         }
     }
@@ -189,9 +190,9 @@ impl AppWidget {
 
     // Draw the audio waveforms
     fn draw_channel(&self, state: &mut State, entity: Entity, data: &[f32], posy: f32, height: f32, canvas: &mut Canvas<OpenGl>) {
-        let x = state.transform.get_posx(entity);
+        let x = state.transform.get_posx(self.waveview);
         let y = posy;
-        let w = state.transform.get_width(entity);
+        let w = state.transform.get_width(self.waveview);
         let h = height;
         
         if data.len() > 0 {
@@ -282,15 +283,20 @@ impl BuildHandler for AppWidget {
     type  Ret = Entity;
     fn on_build(&mut self, state: &mut State, entity: Entity) -> Self::Ret {
 
-        entity.set_flex_grow(state, 1.0).set_flex_direction(state, FlexDirection::Row);
+        entity.set_flex_grow(state, 1.0);
+
+
+        let header = Element::new().build(state, entity, |builder| builder.class("header"));
+        self.waveview = Element::new().build(state, entity, |builder| builder.class("waveview").set_visibility(Visibility::Invisible));
+        let footer = Element::new().build(state, entity, |builder| builder.class("footer"));
 
         // Open file button
-        Button::new().on_release(Event::new(AppEvent::OpenFileDialog)).build(state, entity, |builder| {
+        Button::new().on_release(Event::new(AppEvent::OpenFileDialog)).build(state, header, |builder| {
             builder.set_text("Open").set_margin(Length::Pixels(10.0))
         });
 
 
-        let transport = Element::new().build(state, entity, |builder| builder.class("checklist"));
+        let transport = Element::new().build(state, header, |builder| builder.class("checklist"));
 
         // To start button
         Button::new().build(state, transport, |builder| {
@@ -312,7 +318,8 @@ impl BuildHandler for AppWidget {
             builder.set_text(ICON_TO_END).class("last")
         });
 
-        let channels = CheckList::new().build(state, entity, |builder| builder.class("checklist"));
+        // Channels selector
+        let channels = CheckList::new().build(state, header, |builder| builder.class("checklist"));
 
         let left = Button::new()
             .on_press(Event::new(AppEvent::SwicthChannel(ChannelMode::Left)).target(entity))
@@ -332,10 +339,10 @@ impl BuildHandler for AppWidget {
             builder.set_text("L + R").class("last").set_width(Length::Pixels(60.0))
         });
 
-        self.time_label = Label::new("Time: -").build(state, entity, |builder| builder.set_margin(Length::Pixels(10.0)));
-        self.value_label = Label::new("Value: -").build(state, entity, |builder| builder.set_margin(Length::Pixels(10.0)));
+        self.time_label = Label::new("Time: -").build(state, header, |builder| builder.set_margin(Length::Pixels(10.0)));
+        self.value_label = Label::new("Value: -").build(state, header, |builder| builder.set_margin(Length::Pixels(10.0)));
 
-        let units = CheckList::new().build(state, entity, |builder| builder.class("checklist"));
+        let units = CheckList::new().build(state, header, |builder| builder.class("checklist"));
 
         let linear = Button::new().on_press(Event::new(AppEvent::SwitchUnits(UnitsMode::Linear)).target(entity)).build(state, units, |builder| {
             builder.set_text("Mag").class("first")
@@ -346,6 +353,8 @@ impl BuildHandler for AppWidget {
         Button::new().on_press(Event::new(AppEvent::SwitchUnits(UnitsMode::Decibel)).target(entity)).build(state, units, |builder| {
             builder.set_text("dB").class("last")
         });
+
+        //Button::new().build(state, entity, |builder| builder.class("zoom"));
 
 
         entity
@@ -535,12 +544,11 @@ impl EventHandler for AppWidget {
 
                     // Comment this is nfd not working
                     {
-                        let result = nfd2::open_file_dialog(None, None).unwrap_or_else(|e| {
-                            panic!(e);
-                        });
+
+                        let result = FileDialog::new().show_open_single_file().expect("Failed to open file dialog");
                     
                         match result {
-                            Response::Okay(file_path) => {
+                            Some(file_path) => {
                                 println!("File path = {:?}", file_path);
 
                                 self.read_audio(file_path.as_os_str().to_str().unwrap());
@@ -556,8 +564,8 @@ impl EventHandler for AppWidget {
                                 }
                             
                             },
-                            Response::OkayMultiple(files) => println!("Files {:?}", files),
-                            Response::Cancel => println!("User canceled"),
+                            // TODO
+                            None => panic!("Invalid wav file path")
                         }  
                     }
                     
@@ -582,8 +590,10 @@ impl EventHandler for AppWidget {
 
     fn on_draw(&mut self, state: &mut State, entity: Entity, canvas: &mut Canvas<OpenGl>) {
         
-        let y = state.transform.get_posy(entity) + 50.0;
-        let h = state.transform.get_height(entity) - 100.0;
+
+
+        let y = state.transform.get_posy(self.waveview);
+        let h = state.transform.get_height(self.waveview);
 
         match self.channel_mode {
             ChannelMode::Left => {

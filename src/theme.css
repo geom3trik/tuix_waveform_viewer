@@ -1,4 +1,15 @@
 
+
+.header {
+    flex-direction: row;
+    height: 50px;
+}
+
+.waveview {
+    background-color: red;
+    flex-grow: 1.0;
+}
+
 button {
     height: 30px;
     width: 100px;
@@ -52,4 +63,14 @@ label {
 
 .checklist>button.play {
     color: #ff5e1a;
+}
+
+.zoom {
+    width: 30px;
+    height: 30px;
+    position: absolute;
+    right: 0px;
+    bottom: 0px;
+    background-color: #5a5a5a;
+    margin: 10px;
 }
