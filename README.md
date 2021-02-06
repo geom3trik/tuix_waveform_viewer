@@ -25,6 +25,7 @@ cargo run --release path_to_file.wav
 - [ ] Support for more than 2 channels
 
 ## Known Issues:
+- Open file dialog blocks on MAC OS causing freeze
 - Zooming with the scrollwheel and then panning doesn't work properly.
 - The plus and minus zoom buttons do nothing.
 - The transport controls don't highlight when hovering them.
