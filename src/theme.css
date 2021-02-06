@@ -1,11 +1,11 @@
 
 
-.header {
+.app>.header {
     flex-direction: row;
     height: 50px;
 }
 
-.footer {
+.app>.footer {
     flex-direction: row;
     height: 50px;
     justify-content: flex-end;
@@ -32,46 +32,78 @@ button.open:hover {
     background-color: #ff7033;
 }
 
-label {
+label.info {
     width: 110px;
     height: 30px;
     color: white;
     text-justify: left;
 }
 
-.checklist {
+radio_list {
     margin: 10px;
     flex-direction: row;
     align-self: flex-start;
 }
 
-.checklist>button {
+radio_list>radio_button {
     height: 30px;
     width: 40px;
     background-color: #5a5a5a;
     color: white;
     border-radius: 0px;
+    text-justify: center;
 }
 
-.checklist>button:hover {
+radio_list>radio_button:hover {
     background-color: #696969;
 }
 
-.checklist>button:checked {
+radio_list>radio_button:checked {
     background-color: #ff5e1a;
 }
 
-button.first {
+.first {
     border-top-left-radius: 3px;
     border-bottom-left-radius: 3px;
 }
 
-button.last {
+.last {
     border-top-right-radius: 3px;
     border-bottom-right-radius: 3px;
 }
 
-.checklist>button.play {
+.transport>button.first {
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.transport>button.last {
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.transport {
+    flex-direction: row;
+    margin: 10px;
+}
+
+.transport>button {
+    width: 40px;
+    height: 30px;
+    background-color: #5a5a5a;
+    color: white;
+    border-radius: 0px;
+}
+
+.transport>checkbox {
+    width: 40px;
+    height: 30px;
+    background-color: #5a5a5a;
+    color: white;
+    border-radius: 0px;
+}
+
+.transport>button.play {
     color: #ff5e1a;
 }
 
@@ -88,6 +120,31 @@ button.last {
 
 .zoom:hover {
     background-color: #696969;
+}
+
+.zoom:checked {
+    background-color: #ff5e1a;
+}
+
+
+dropdown.zoom {
+    width: 50px;
+}
+
+dropdown.zoom label {
+    text-justify: center;
+}
+
+dropdown>.container {
+    bottom: 100%;
+}
+
+dropdown>.container>radio_list {
+    margin: 0px;
+}
+
+dropdown>.container>radio_list>radio_button {
+    width: 50px;
 }
 
 label.zoom {

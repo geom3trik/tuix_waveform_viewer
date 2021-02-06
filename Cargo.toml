@@ -1,17 +1,18 @@
 [package]
 name = "wav_viewer"
 version = "0.1.0"
-authors = ["George Atkinson <geomyles@yahoo.co.uk>"]
+authors = ["George Atkinson <geomyles@yahoo.co.uk>", "Mike Hilgendorf <mike@hilgendorf.audio>"]
 edition = "2018"
+license = "GPLv3"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tuix = {git = "https://github.com/geom3trik/tuix", branch = "main"}
+tuix = {git = "https://github.com/geom3trik/tuix", branch = "develop"}
 native-dialog = "*"
 femtovg = {git = "https://github.com/femtovg/femtovg", branch = "master"}
 dasp_sample = "0.11.0"
-# cpal = "0.13"
+cpal = "0.13"
 hound = { git = "https://github.com/ruuda/hound.git"}
-# basedrop = { git = "https://github.com/glowcoil/basedrop.git" }
-# ringbuf = "0.2"
+basedrop = { git = "https://github.com/glowcoil/basedrop.git" }
+ringbuf = "0.2"
