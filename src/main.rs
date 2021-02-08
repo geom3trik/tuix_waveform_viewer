@@ -769,40 +769,43 @@ impl EventHandler for AppWidget {
                 // Moving the mouse moves the cursor position
                 WindowEvent::MouseMove(x, _) => {
                     if event.target == entity {
-
-                        self.zoom_pos_pixel = *x - state.data.get_posx(entity);
-
-                        self.zoom_pos = self.start
-                            + (self.samples_per_pixel as f32 * self.zoom_pos_pixel) as usize;
-
-                        if self.zoom_pos >= self.left_channel.len() {
-                            self.zoom_pos = self.left_channel.len() - 1;
-                        }
-
-                        state.insert_event(Event::new(WindowEvent::Redraw));
-
-                        // Update the time and value display
                         if self.left_channel.len() > 0 {
-                            let time = self.zoom_pos as f32 / 44100.0;
-                            let time_value: TimeValue = time.into();
-                            let time_string = format!("Time: {}", time_value);
-                            self.time_label.set_text(state, &time_string);
+                            self.zoom_pos_pixel = *x - state.data.get_posx(entity);
 
-                            match self.units_mode {
-                                UnitsMode::Linear => {
-                                    let value = self.left_channel[self.zoom_pos as usize];
-                                    let value_string = format!("Value: {:+.2e}", value);
-                                    self.value_label.set_text(state, &value_string);
-                                }
+                            self.zoom_pos = self.start
+                                + (self.samples_per_pixel as f32 * self.zoom_pos_pixel) as usize;
 
-                                UnitsMode::Decibel => {
-                                    let value = 10.0
-                                        * self.left_channel[self.zoom_pos as usize].abs().log10();
-                                    let value_string = format!("Value: {:.2} dB", value);
-                                    self.value_label.set_text(state, &value_string);
-                                }
+                            if self.zoom_pos >= self.left_channel.len() {
+                                self.zoom_pos = self.left_channel.len() - 1;
                             }
+
+                            state.insert_event(Event::new(WindowEvent::Redraw));
+
+                            // Update the time and value display
+                            // TODO
+                            // if self.left_channel.len() > 0 {
+                            //     let time = self.zoom_pos as f32 / 44100.0;
+                            //     let time_value: TimeValue = time.into();
+                            //     let time_string = format!("Time: {}", time_value);
+                            //     self.time_label.set_text(state, &time_string);
+
+                            //     match self.units_mode {
+                            //         UnitsMode::Linear => {
+                            //             let value = self.left_channel[self.zoom_pos as usize];
+                            //             let value_string = format!("Value: {:+.2e}", value);
+                            //             self.value_label.set_text(state, &value_string);
+                            //         }
+
+                            //         UnitsMode::Decibel => {
+                            //             let value = 10.0
+                            //                 * self.left_channel[self.zoom_pos as usize].abs().log10();
+                            //             let value_string = format!("Value: {:.2} dB", value);
+                            //             self.value_label.set_text(state, &value_string);
+                            //         }
+                            //     }
+                            // }   
                         }
+                        
                     }
                 }
 
