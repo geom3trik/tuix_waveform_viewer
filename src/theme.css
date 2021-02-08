@@ -3,16 +3,17 @@
 .app>.header {
     flex-direction: row;
     height: 50px;
+    align-items: center;
 }
 
 .app>.footer {
     flex-direction: row;
     height: 50px;
     justify-content: flex-end;
+    align-items: center;
 }
 
 .waveview {
-    background-color: red;
     flex-grow: 1.0;
 }
 
@@ -32,8 +33,12 @@ button.open:hover {
     background-color: #ff7033;
 }
 
+button.open:active {
+    background-color: #cc3d00;
+}
+
 label.info {
-    width: 110px;
+    width: 200px;
     height: 30px;
     color: white;
     text-justify: left;
@@ -82,6 +87,14 @@ radio_list>radio_button:checked {
     border-bottom-right-radius: 3px;
 }
 
+button.volume {
+    width: 40px;
+    height: 30px;
+    background-color: #5a5a5a;
+    color: white;
+    border-radius: 3px;
+}
+
 .transport {
     flex-direction: row;
     margin: 10px;
@@ -95,12 +108,28 @@ radio_list>radio_button:checked {
     border-radius: 0px;
 }
 
+.transport>button:hover {
+    background-color: #696969;
+}
+
+.transport>button:active {
+    background-color: #454545;
+}
+
 .transport>checkbox {
     width: 40px;
     height: 30px;
     background-color: #5a5a5a;
     color: white;
     border-radius: 0px;
+}
+
+.transport>checkbox:hover {
+    background-color: #696969;
+}
+
+.transport>checkbox:active {
+    background-color: #454545;
 }
 
 .transport>button.play {
@@ -150,4 +179,34 @@ dropdown>.container>radio_list>radio_button {
 label.zoom {
     width: 50px;
     text-justify: center;
+}
+
+slider.volume {
+    margin: 10px;
+    width: 100px;
+    /* flex-grow: 1.0; */
+    height: 4px;
+    border-radius: 2px;
+    background-color: #646464;
+}
+
+slider.volume>.active {
+    background-color: #f74c00;
+    border-radius: 2px;
+}
+
+slider.volume>.thumb {
+    background-color:#ff5e1a;
+    border-radius: 9.5px;
+}
+
+checkbox.snap {
+    width: 40px;
+    height: 30px;
+    border-radius: 3px;
+    background-color: #646464;
+}
+
+checkbox.snap:checked {
+    background-color:#ff5e1a;
 }

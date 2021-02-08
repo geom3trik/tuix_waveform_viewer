@@ -17,6 +17,7 @@ enum Message {
     Stop,
     SetActive(usize, bool),
     NewFile(Shared<AudioFile>),
+    Volume(f32),
 }
 
 pub struct SamplePlayer {
@@ -25,6 +26,7 @@ pub struct SamplePlayer {
     playhead: Arc<AtomicUsize>,
     state: PlayerState,
     rx: Consumer<Message>,
+    volume: f32,
 }
 
 pub struct SamplePlayerController {
@@ -48,6 +50,7 @@ pub fn sample_player(c: &Collector) -> (SamplePlayer, SamplePlayerController) {
             playhead: playhead.clone(),
             state: PlayerState::Stopped,
             rx,
+            volume: 1.0,
         },
         SamplePlayerController {
             tx,
@@ -90,6 +93,7 @@ impl SamplePlayer {
                 }
                 Message::Play => self.state = PlayerState::Playing,
                 Message::Stop => self.state = PlayerState::Stopped,
+                Message::Volume(val) => self.volume = val,
             }
         }
 
@@ -111,6 +115,7 @@ impl SamplePlayer {
                     + (self.playhead() + context.buffer_size).min(file.num_samples);
                 context.get_output(channel)[0..(end - start)]
                     .copy_from_slice(&file.data[start..end]);
+                context.get_output(channel)[0..(end - start)].iter_mut().for_each(|sample| *sample = *sample * self.volume);
             }
             self.playhead
                 .fetch_add(context.buffer_size, Ordering::SeqCst);
@@ -152,6 +157,9 @@ impl SamplePlayerController {
     }
     pub fn set_active(&mut self, channel_index: usize, active: bool) {
         self.send_msg(Message::SetActive(channel_index, active));
+    }
+    pub fn volume(&mut self, val: f32) {
+        self.send_msg(Message::Volume(val));
     }
     pub fn load_file(&mut self, s: &str) {
         let audio_file = Shared::new(

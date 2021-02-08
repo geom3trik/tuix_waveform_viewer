@@ -1141,9 +1141,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.85"
+version = "0.2.86"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ccac4b00700875e6a07c6cde370d44d32fa01c5a65cdd2fca6858c479d28bb3"
+checksum = "b7282d924be3275cec7f6756ff4121987bc6481325397dde6ba3e7802b1a8b1c"
 
 [[package]]
 name = "libflate"
@@ -2387,7 +2387,7 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#2f60b30dabeabb128c90147379138c8dd4188aae"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#99ba66804c9201b3071f65c322e4afae2bde039b"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2396,7 +2396,7 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#2f60b30dabeabb128c90147379138c8dd4188aae"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#99ba66804c9201b3071f65c322e4afae2bde039b"
 dependencies = [
  "bimap",
  "cssparser",
@@ -2412,7 +2412,7 @@ dependencies = [
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#2f60b30dabeabb128c90147379138c8dd4188aae"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#99ba66804c9201b3071f65c322e4afae2bde039b"
 dependencies = [
  "femtovg",
  "glutin",
