@@ -2,7 +2,7 @@
 An audio player and waveform viewer for .wav files. Written in Rust.
 
 
-![screenshot](https://github.com/geom3trik/tuix_waveform_viewer/blob/main/docs/screenshot.png?raw=true)
+![screenshot](https://github.com/geom3trik/tuix_waveform_viewer/blob/main/docs/screenshot2.png?raw=true)
 
 
 ## Usage:
