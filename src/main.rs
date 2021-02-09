@@ -7,7 +7,10 @@ const ICON_TO_END: &str = "\u{23ed}";
 const ICON_PLUS: &str = "\u{2b}";
 const ICON_MINUS: &str = "\u{2d}";
 const ICON_SOUND: &str = "\u{1f50a}";
+const ICON_MUTE: &str = "\u{1f507}";
 const ICON_MAGNET: &str = "\u{e7a1}";
+const ICON_LOCK_OPEN: &str = "\u{1f513}";
+const ICON_LOCK: &str = "\u{1f512}";
 
 
 
@@ -159,6 +162,8 @@ pub enum AppEvent {
     FollowPlayhead(bool),
     Volume(f32),
 
+    Mute(bool),
+
     Play,
     Pause,
     Stop,
@@ -176,6 +181,9 @@ pub struct AppWidget {
 
     zoom_pos_pixel: f32,
 
+    mute: f32,
+    volume: f32,
+
     start: usize,
     end: usize,
     zoom_pos: usize,
@@ -192,6 +200,9 @@ pub struct AppWidget {
 
     // Player data
     is_playing: bool,
+    num_of_samples: usize,
+    num_of_channels: usize,
+    sample_rate: f64,
 
     play_button: Entity,
 
@@ -208,12 +219,19 @@ impl AppWidget {
         Self {
             left_channel: Default::default(),
             right_channel: Default::default(),
-            zoom_level: 2,
+            zoom_level: 3,
             scroll_pos: 0,
+
+            mute: 1.0,
+            volume: 1.0,
 
             samples_per_pixel: 441,
 
             zoom_pos_pixel: 0.0,
+
+            num_of_samples: 0,
+            num_of_channels: 0,
+            sample_rate: 0.0,
 
             start: 0,
             end: 0,
@@ -300,7 +318,6 @@ impl AppWidget {
         if data.len() > 0 {
             let audio = &data[self.start as usize..self.end as usize];
 
-
             // Fill the background
             let mut path = Path::new();
             path.rect(x, y, w, h);
@@ -310,8 +327,8 @@ impl AppWidget {
             );
 
             // Minimum time
-            let start_time = self.start as f32 / 44100.0;
-            let end_time = self.end as f32 / 44100.0;
+            let start_time = self.start as f32 / self.sample_rate as f32;
+            let end_time = self.end as f32 / self.sample_rate as f32;
 
             let total_time = end_time - start_time;
 
@@ -327,7 +344,7 @@ impl AppWidget {
             let last = round_up(end_time as u32, 1);
 
             for n in (first..last+1) {
-                let sample = 44100.0 * n as f32 - self.start as f32;
+                let sample = self.sample_rate as f32 * n as f32 - self.start as f32;
                 let pixel = ((1.0 / self.samples_per_pixel as f32) * sample).round();
                 let mut path = Path::new();
                 path.move_to(x + pixel, y + 20.0);
@@ -369,6 +386,7 @@ impl AppWidget {
             //         }
             //     }
             // } else {
+
                 let mut chunks = audio.chunks(self.samples_per_pixel);
 
                 for chunk in 0..w as u32 {
@@ -485,6 +503,7 @@ impl BuildHandler for AppWidget {
     fn on_build(&mut self, state: &mut State, entity: Entity) -> Self::Ret {
         entity.set_flex_grow(state, 1.0);
 
+        state.focused = entity;
         // TEMP - Animations cause the event loop to run continuously so that the timeline cursor moves smoothly
         let animation_state = AnimationState::new()
             .with_duration(std::time::Duration::from_secs(200))
@@ -566,7 +585,19 @@ impl BuildHandler for AppWidget {
             builder.class("info").set_margin(Length::Pixels(10.0))
         });
 
-        Button::new().build(state, header, |builder| builder.set_text(ICON_SOUND).set_font("Icons").class("volume"));
+        //Button::new().build(state, header, |builder| builder.set_text(ICON_SOUND).set_font("Icons").class("volume"));
+
+
+        Checkbox::new(true)
+            .on_unchecked(Event::new(AppEvent::Mute(false)).target(entity))        
+            .on_checked(Event::new(AppEvent::Mute(true)).target(entity))
+            .with_icon_checked(ICON_SOUND)
+            .with_icon_unchecked(ICON_MUTE)        
+            .build(state, header, |builder| {
+                builder
+                    .set_font("Icons")
+                    .class("snap")
+        });
 
         let volume_slider = Slider::new()
             .on_change(move |value| Event::new(AppEvent::Volume(value)).target(entity))
@@ -626,11 +657,11 @@ impl BuildHandler for AppWidget {
 
 
         // FOOTER
-        Checkbox::new(true)
+        Checkbox::new(false)
             .on_unchecked(Event::new(AppEvent::FollowPlayhead(false)).target(entity))        
             .on_checked(Event::new(AppEvent::FollowPlayhead(true)).target(entity))
-            .with_icon_checked(ICON_MAGNET)
-            .with_icon_unchecked(ICON_MAGNET)        
+            .with_icon_checked(ICON_LOCK)
+            .with_icon_unchecked(ICON_LOCK_OPEN)        
             .build(state, footer, |builder| {
                 builder
                     .set_font("Icons")
@@ -753,7 +784,7 @@ impl EventHandler for AppWidget {
                     if event.target == entity {
                         let total_samples =
                         (state.data.get_width(entity) * self.samples_per_pixel as f32) as i32;
-                        self.end = self.start + (total_samples as usize).min(self.left_channel.len());
+                        self.end = self.start + (total_samples as usize).min(self.num_of_samples);
                     }
                 }
 
@@ -761,7 +792,7 @@ impl EventHandler for AppWidget {
                 WindowEvent::MouseDown(button) => {
                     if event.target == entity {
                         if *button == MouseButton::Left {
-                            self.controller.seek(self.zoom_pos as f64 / 44100.0);
+                            self.controller.seek(self.zoom_pos as f64 / self.sample_rate);
                         }
                     }
                 }
@@ -769,14 +800,14 @@ impl EventHandler for AppWidget {
                 // Moving the mouse moves the cursor position
                 WindowEvent::MouseMove(x, _) => {
                     if event.target == entity {
-                        if self.left_channel.len() > 0 {
+                        if self.num_of_samples > 0 {
                             self.zoom_pos_pixel = *x - state.data.get_posx(entity);
 
                             self.zoom_pos = self.start
                                 + (self.samples_per_pixel as f32 * self.zoom_pos_pixel) as usize;
 
-                            if self.zoom_pos >= self.left_channel.len() {
-                                self.zoom_pos = self.left_channel.len() - 1;
+                            if self.zoom_pos >= self.num_of_samples / self.num_of_channels {
+                                self.zoom_pos = self.num_of_samples / self.num_of_channels - 1;
                             }
 
                             state.insert_event(Event::new(WindowEvent::Redraw));
@@ -812,7 +843,6 @@ impl EventHandler for AppWidget {
                 // Scrolling the mouse will pan the waveform, scrolling with ctrl will zoom the waveform at the cursor
                 WindowEvent::MouseScroll(_, y) => {
                     if *y > 0.0 {
-                        println!("Zoom In");
                         if state.modifiers.ctrl {
                             if self.zoom_level != SAMPLES_PER_PIXEL.len() - 1 {
                                 self.zoom_level += 1;
@@ -837,7 +867,7 @@ impl EventHandler for AppWidget {
                                 new_end = total_samples as usize + offset as usize;
                             }
 
-                            self.end = new_end.min(self.left_channel.len() - 1);
+                            self.end = new_end.min(self.num_of_samples - 1);
                             self.start = new_start.max(0).min(self.end);
                         } else {
                             
@@ -854,7 +884,7 @@ impl EventHandler for AppWidget {
                                 new_end =  self.end - (self.samples_per_pixel as f32 * 30.0) as usize;
                             }
 
-                            self.end = new_end.min(self.left_channel.len() - 1);
+                            self.end = new_end.min(self.num_of_samples - 1);
                             self.start = new_start.max(0).min(self.end);
 
                         }
@@ -887,12 +917,12 @@ impl EventHandler for AppWidget {
                                 new_end = total_samples as usize + offset as usize;
                             }
 
-                            self.end = new_end.min(self.left_channel.len() - 1);
+                            self.end = new_end.min(self.num_of_samples - 1);
                             self.start = new_start.max(0).min(self.end);
 
                         } else {
 
-                            let samples_to_end = self.left_channel.len() - 1 - self.end;
+                            let samples_to_end = self.num_of_samples - 1 - self.end;
 
                             let new_start;
                             let new_end;
@@ -902,15 +932,90 @@ impl EventHandler for AppWidget {
                                 new_end = self.end + samples_to_end;
                             } else {
                                 new_start = self.start + (self.samples_per_pixel as f32 * 30.0) as usize;
+                                //let sample_end = self.start + state.data.get_width(entity) * self.samples_per_pixel;
+                                
                                 new_end =  self.end + (self.samples_per_pixel as f32 * 30.0) as usize;
+                                // if samle_end < new_end {
+                                //     new_end 
+                                // }
                             }
 
                             self.start = new_start.max(0).min(self.end);
-                            self.end = new_end.min(self.left_channel.len() - 1);
+                            self.end = new_end.min(self.num_of_samples - 1);
                         }
 
                         state.insert_event(Event::new(WindowEvent::Redraw));
                         event.consume();
+                    }
+                }
+
+
+                WindowEvent::KeyDown(code, key) => {
+                    println!("Key: {:?} {:?}", code, key);
+                    match code {
+                        Code::Space => {
+                            if self.is_playing {
+                                state.insert_event(Event::new(AppEvent::Pause).target(entity));
+                            } else {
+                                state.insert_event(Event::new(AppEvent::Play).target(entity));
+                            }
+                            
+                        }
+
+                        Code::KeyS => {
+                            state.insert_event(Event::new(AppEvent::Stop).target(entity));
+                        }
+
+                        _=> {}
+                    }
+
+                    match key {
+                        Some(Key::ArrowLeft) => {
+                            //println!("Do This");
+                            if self.playhead > 0 {
+                                let current_time = self.playhead as f64 / self.sample_rate;
+                                let new_time = (current_time - 1.0).max(0.0);
+                                if self.is_playing {
+                                    
+                                    self.controller.seek(new_time);
+                                } else {
+                                    self.playhead -= self.samples_per_pixel;
+                                    //println!("playhead: {}", self.playhead);
+                                    let current_time = (self.playhead as f64 / self.sample_rate).max(0.0);
+                                    self.controller.seek(current_time);
+                                }
+
+                                state.insert_event(Event::new(WindowEvent::Redraw));
+                            }
+                        }
+
+                        Some(Key::ArrowRight) => {
+
+                                let current_time = self.playhead as f64 / self.sample_rate;
+                                let new_time = (current_time + 1.0).max(0.0);
+                                if self.is_playing {
+                                    
+                                    self.controller.seek(new_time);
+                                } else {
+                                    self.playhead += self.samples_per_pixel;
+                                    //println!("playhead: {}", self.playhead);
+                                    let current_time = (self.playhead as f64 / self.sample_rate).max(0.0);
+                                    self.controller.seek(current_time);
+                                }
+
+                                state.insert_event(Event::new(WindowEvent::Redraw));
+                            
+                        }
+
+                        Some(Key::Home) => {
+                            state.insert_event(Event::new(AppEvent::SeekLeft).target(entity));
+                        }
+
+                        Some(Key::End) => {
+                            state.insert_event(Event::new(AppEvent::SeekRight).target(entity));
+                        }
+
+                        _=> {}
                     }
                 }
 
@@ -924,10 +1029,19 @@ impl EventHandler for AppWidget {
 
                 // Load an audio file specified on the command line
                 AppEvent::LoadAudioFile(file_path) => {
-                    self.read_audio(file_path);
+                    //self.read_audio(file_path);
                     self.controller.load_file(file_path);
 
-                    state.insert_event(Event::new(AppEvent::SetZoomLevel(2)).target(entity));
+
+                    if let Some(file) = self.controller.file.as_ref() {
+                        self.num_of_channels = file.num_channels;
+                        self.sample_rate = file.sample_rate;
+                        self.num_of_samples = file.num_samples;
+                        println!("Length: {} ", self.num_of_samples);
+                    }
+
+
+                    state.insert_event(Event::new(AppEvent::SetZoomLevel(3)).target(entity));
                 }
 
                 // Load an audio file using a file dialog
@@ -941,28 +1055,35 @@ impl EventHandler for AppWidget {
                         Some(file_path) => {
                             println!("File path = {:?}", file_path);
 
-                            self.read_audio(file_path.as_os_str().to_str().unwrap());
+                            //self.read_audio(file_path.as_os_str().to_str().unwrap());
 
                             self.controller.load_file(file_path.as_os_str().to_str().unwrap());
                             self.controller.seek(0.0);
                             self.is_playing = false;
 
-
-                            state.insert_event(Event::new(AppEvent::SetZoomLevel(2)).target(entity));
-
-                            let samples_per_pixel = 441.0;
-
-                            self.zoom_level = 2;
-                            self.start = 0;
-
-                            self.end = (state.data.get_width(entity) * samples_per_pixel)
-                                .ceil() as usize;
-                            if self.end > self.left_channel.len() - 1 {
-                                self.end = self.left_channel.len() - 1 ;
+                            if let Some(file) = self.controller.file.as_ref() {
+                                self.num_of_channels = file.num_channels;
+                                self.sample_rate = file.sample_rate;
+                                self.num_of_samples = file.num_samples;
+                                println!("Length: {} ", file.num_samples);
                             }
 
-                            self.start = self.start.min(self.left_channel.len() - 1).max(0);
-                            self.end = self.end.min(self.left_channel.len() - 1).max(0);
+
+                            state.insert_event(Event::new(AppEvent::SetZoomLevel(3)).target(entity));
+
+                            //let samples_per_pixel = 441.0;
+
+                            // self.zoom_level = 2;
+                            // self.start = 0;
+
+                            // self.end = (state.data.get_width(entity) * samples_per_pixel)
+                            //     .ceil() as usize;
+                            // if self.end > self.num_of_samples - 1 {
+                            //     self.end = self.num_of_samples - 1 ;
+                            // }
+
+                            // self.start = self.start.min(self.num_of_samples - 1).max(0);
+                            // self.end = self.end.min(self.num_of_samples - 1).max(0);
                         }
 
                         None => {}
@@ -997,13 +1118,14 @@ impl EventHandler for AppWidget {
                     let new_end = total_samples as usize;
 
                     self.start = new_start.max(0);
-                    self.end = new_end.min(self.left_channel.len() - 1);
+                    self.end = new_end.min(self.num_of_samples - 1);
 
                     state.insert_event(Event::new(WindowEvent::Redraw));
                 }
                 
                 // Initiate playback
                 AppEvent::Play => {
+                    state.insert_event(Event::new(CheckboxEvent::Uncheck).target(self.play_button));
                     self.controller.play();
                     state.style.border_color.play_animation(entity, self.random_animation);
                     self.is_playing = true;
@@ -1011,6 +1133,7 @@ impl EventHandler for AppWidget {
 
                 // Pause playback
                 AppEvent::Pause => {
+                    state.insert_event(Event::new(CheckboxEvent::Check).target(self.play_button));
                     self.controller.stop();
                     self.is_playing = false;
                 }
@@ -1029,15 +1152,15 @@ impl EventHandler for AppWidget {
                     let total_samples =
                         (state.data.get_width(entity) * self.samples_per_pixel as f32) as i32;
                     self.start = 0;
-                    self.end = (total_samples as usize).min(self.left_channel.len());
+                    self.end = (total_samples as usize).min(self.num_of_samples);
                     self.start = self.start.max(0);
-                    self.end = self.end.min(self.left_channel.len() - 1);
+                    self.end = self.end.min(self.num_of_samples - 1);
                 }
 
                 // Move playhead to end
                 // TODO
                 AppEvent::SeekRight => {
-                    let end_time = self.left_channel.len() as f64 / 44100.0;
+                    let end_time = self.num_of_samples as f64 / self.sample_rate;
                     self.controller.seek(end_time);
                 }
 
@@ -1046,7 +1169,18 @@ impl EventHandler for AppWidget {
                 }
 
                 AppEvent::Volume(val) => {
-                    self.controller.volume(*val);
+                    self.volume = *val;
+                    self.controller.volume(*val * self.mute);
+                }
+
+                AppEvent::Mute(val) => {
+                    if *val {
+                        self.mute = 1.0;
+                    } else {
+                        self.mute = 0.0;
+                    }
+
+                    state.insert_event(Event::new(AppEvent::Volume(self.volume)).target(entity));
                 }
             }
         }
@@ -1058,27 +1192,33 @@ impl EventHandler for AppWidget {
         let h = state.data.get_height(self.waveview);
         let w = state.data.get_width(self.waveview);
 
-        match self.channel_mode {
-            ChannelMode::Left => {
-                self.draw_channel(state, entity, &self.left_channel, y, h, canvas);
+        if let Some(file) = self.controller.file.as_ref() {
+
+            match self.channel_mode {
+                ChannelMode::Left => {
+                    self.draw_channel(state, entity, &file.data[0..self.num_of_samples], y, h, canvas);
+                }
+
+                ChannelMode::Right => {
+                    self.draw_channel(state, entity, &file.data[self.num_of_samples..self.num_of_samples*2], y, h, canvas);
+                }
+
+                ChannelMode::Both => {
+                    self.draw_channel(state, entity, &file.data[0..file.num_samples / 2], y, h / 2.0, canvas);
+                    self.draw_channel(
+                        state,
+                        entity,
+                        &file.data[(file.num_samples / 2)+1..file.num_samples],
+                        y + h / 2.0,
+                        h / 2.0,
+                        canvas,
+                    );
+                }
             }
 
-            ChannelMode::Right => {
-                self.draw_channel(state, entity, &self.right_channel, y, h, canvas);
-            }
-
-            ChannelMode::Both => {
-                self.draw_channel(state, entity, &self.left_channel, y, h / 2.0, canvas);
-                self.draw_channel(
-                    state,
-                    entity,
-                    &self.right_channel,
-                    y + h / 2.0,
-                    h / 2.0,
-                    canvas,
-                );
-            }
         }
+
+
 
         // Reset the playhead when it reaches the end of the file
         let playhead = self.controller.playhead() as f64;
@@ -1091,7 +1231,7 @@ impl EventHandler for AppWidget {
 
         // Update the playhead time display
         if self.is_playing {
-            let time = self.playhead as f32 / 44100.0;
+            let time = self.playhead as f32 / self.sample_rate as f32;
             let time_value: TimeValue = time.into();
             let time_string = format!("Playhead: {}", time_value);
             self.playhead_label.set_text(state, &time_string);
@@ -1115,7 +1255,7 @@ impl EventHandler for AppWidget {
                     new_end = total_samples as usize + offset as usize;
                 }
 
-                self.end = new_end.min(self.left_channel.len() - 1);
+                self.end = new_end.min(self.num_of_samples - 1);
                 self.start = new_start.max(0).min(self.end);                
             }
 

@@ -2387,7 +2387,7 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#99ba66804c9201b3071f65c322e4afae2bde039b"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#2f43b62983330ae1d55fdb56668877e7d91887ce"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2396,7 +2396,7 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#99ba66804c9201b3071f65c322e4afae2bde039b"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#2f43b62983330ae1d55fdb56668877e7d91887ce"
 dependencies = [
  "bimap",
  "cssparser",
@@ -2412,7 +2412,7 @@ dependencies = [
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#99ba66804c9201b3071f65c322e4afae2bde039b"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#2f43b62983330ae1d55fdb56668877e7d91887ce"
 dependencies = [
  "femtovg",
  "glutin",
@@ -2449,9 +2449,9 @@ checksum = "7f9af028e052a610d99e066b33304625dea9613170a2563314490a4e6ec5cf7f"
 
 [[package]]
 name = "unicode-normalization"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a13e63ab62dbe32aeee58d1c5408d35c36c392bba5d9d3142287219721afe606"
+checksum = "07fbfce1c8a97d547e8b5334978438d9d6ec8c20e38f56d4a4374d181493eaef"
 dependencies = [
  "tinyvec",
 ]
