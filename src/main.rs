@@ -255,7 +255,7 @@ impl AppWidget {
             controller,
 
             random_animation: std::usize::MAX,
-            follow_playhead: true,
+            follow_playhead: false,
         }
     }
 }
@@ -806,8 +806,8 @@ impl EventHandler for AppWidget {
                             self.zoom_pos = self.start
                                 + (self.samples_per_pixel as f32 * self.zoom_pos_pixel) as usize;
 
-                            if self.zoom_pos >= self.num_of_samples / self.num_of_channels {
-                                self.zoom_pos = self.num_of_samples / self.num_of_channels - 1;
+                            if self.zoom_pos >= self.num_of_samples {
+                                self.zoom_pos = self.num_of_samples - 1;
                             }
 
                             state.insert_event(Event::new(WindowEvent::Redraw));
