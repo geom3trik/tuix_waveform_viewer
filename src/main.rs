@@ -1456,7 +1456,7 @@ impl EventHandler for AppWidget {
         }
 
 
-        println!("amount: {}", self.waveform_left.data.len() * 2);
+        //println!("amount: {}", self.waveform_left.data.len() * 2);
     }
 }
 
