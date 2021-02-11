@@ -2,7 +2,7 @@
 An audio player and waveform viewer for .wav files. Written in Rust.
 
 
-![screenshot](https://github.com/geom3trik/tuix_waveform_viewer/blob/main/docs/screenshot2.png?raw=true)
+![screenshot](https://github.com/geom3trik/tuix_waveform_viewer/blob/main/docs/screenshot3.png?raw=true)
 
 
 ## Usage:
@@ -16,9 +16,10 @@ cargo run --release path_to_file.wav
 - [x] View left, right, left + right channels for stereo audio
 - [x] View waveform in linear and decibel
 - [x] Cursor with time and value display
-- [x] Zoom and pan waveform (mostly works)
+- [x] Zoom and pan waveform
 - [x] Playback controls
-- [ ] Select a time region and display info
+- [x] Select a time region for looping
+- [x] Navigation pane for easy scrolling
 - [ ] Display wav file info
 - [ ] Change waveform and backgound colors
 - [ ] Menu for changing properties
