@@ -30,6 +30,7 @@ impl Waveform {
 
     pub fn load(&mut self, audio: &[f32], num_of_pixels: usize)  {
         self.data.clear();
+        self.index.clear();
         for level in 0..SAMPLES_PER_PIXEL.len() + 1 {
             self.index.push(self.data.len());
             let samples_per_pixel = if level == SAMPLES_PER_PIXEL.len() {
