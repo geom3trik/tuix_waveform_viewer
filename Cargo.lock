@@ -2387,7 +2387,6 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#2f43b62983330ae1d55fdb56668877e7d91887ce"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2396,7 +2395,6 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#2f43b62983330ae1d55fdb56668877e7d91887ce"
 dependencies = [
  "bimap",
  "cssparser",
@@ -2412,7 +2410,6 @@ dependencies = [
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#2f43b62983330ae1d55fdb56668877e7d91887ce"
 dependencies = [
  "femtovg",
  "glutin",
@@ -2612,6 +2609,7 @@ dependencies = [
  "dasp_sample",
  "femtovg",
  "hound",
+ "image",
  "native-dialog",
  "ringbuf",
  "tuix",
