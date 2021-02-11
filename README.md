@@ -27,6 +27,5 @@ cargo run --release path_to_file.wav
 
 ## Known Issues:
 - Open file dialog blocks on MAC OS causing freeze
-- The plus and minus zoom buttons do nothing.
 - Sample-level display is missing
-- dB units at sample-level does not work
+- Opening a mono file instead of a stereo file crashes
