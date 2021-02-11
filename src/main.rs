@@ -11,6 +11,7 @@ const ICON_MUTE: &str = "\u{1f507}";
 const ICON_MAGNET: &str = "\u{e7a1}";
 const ICON_LOCK_OPEN: &str = "\u{1f513}";
 const ICON_LOCK: &str = "\u{1f512}";
+const ICON_LOOP: &str = "\u{1f501}";
 
 
 
@@ -22,14 +23,19 @@ use audio_stream::audio_stream;
 use basedrop::Collector;
 use cpal::{PlayStreamError, traits::StreamTrait};
 use sample_player::*;
+mod waveform;
+use waveform::*;
 
 use tuix::*;
 
+use image::GenericImageView;
+
 use native_dialog::FileDialog;
 
-use std::{cmp::Ordering, println};
+use std::cmp::Ordering;
 
 use dasp_sample::{Sample, I24};
+
 
 use femtovg::{
     renderer::OpenGl,
@@ -57,12 +63,12 @@ pub struct TimeValue(pub f32);
 
 impl std::fmt::Display for TimeValue {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.0.abs() < 1.0 {
-            write!(f, "{:.0} ms", self.0 * 1000.0)
-        } else if self.0.abs() >= 1.0 && self.0.abs() < 60.0 {
-            write!(f, "{:.3} s", self.0)
+        if self.0.abs() >= 0.0 && self.0.abs() < 60.0 {
+            write!(f, "00''00'{:04.1}", self.0)
         } else if self.0.abs() >= 60.0 && self.0.abs() < 3600.0 {
-            write!(f, "{:.0} m {:.3} s", (self.0 / 60.0).floor(), self.0 % 60.0)
+            write!(f, "00''{:02}'{:04.1}", (self.0 / 60.0).floor(), self.0 % 60.0)
+        } else if self.0.abs() >= 3600.0 && self.0.abs() < 3600.0 {
+            write!(f, "{:02}''{:02}'{:04.1}",(self.0 / 3600.0).floor(), ((self.0 %  3600.0) / 60.0).floor() , self.0 % 60.0)
         } else {
             write!(f, "{}", self.0)
         }
@@ -76,6 +82,9 @@ impl From<f32> for TimeValue {
 }
 
 fn main() -> Result<(), PlayStreamError> {
+
+    let icon = image::open("icon.png").expect("Failed to find icon");
+
 
     // initialize gc
     let gc = Collector::new();
@@ -122,6 +131,7 @@ fn main() -> Result<(), PlayStreamError> {
         win_desc
             .with_title("Waveform Viewer")
             .with_inner_size(1000, 600)
+            .with_icon(icon.to_bytes(), icon.width(), icon.height())
     });
 
     // Start the tuix app event loop
@@ -129,11 +139,6 @@ fn main() -> Result<(), PlayStreamError> {
 
     Ok(())
 }
-
-const SAMPLES_PER_PIXEL: [usize; 11] = [
-    4410, 1764, 882, 441, 147, 63, 49, 21, 9, 7, 3
-];
-
 pub enum AppError {
     FileReadError,
 }
@@ -150,6 +155,18 @@ pub enum UnitsMode {
     Linear,
     Decibel,
 }
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayState {
+    Playing,
+    Paused,
+    Stopped,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ZoomMode {
+    Cursor,
+    Mouse,
+}
 
 // Waveform viewer events
 #[derive(Debug, Clone, PartialEq)]
@@ -158,11 +175,14 @@ pub enum AppEvent {
     LoadAudioFile(String),
     SwicthChannel(ChannelMode),
     SwitchUnits(UnitsMode),
-    SetZoomLevel(usize),
+    SetZoomLevel(usize, ZoomMode),
     FollowPlayhead(bool),
+    Loop(bool),
     Volume(f32),
 
     Mute(bool),
+    IncZoom,
+    DecZoom,
 
     Play,
     Pause,
@@ -172,11 +192,8 @@ pub enum AppEvent {
 }
 
 pub struct AppWidget {
-    left_channel: Vec<f32>,
-    right_channel: Vec<f32>,
-    zoom_level: usize,
-    scroll_pos: usize,
 
+    zoom_level: usize,
     samples_per_pixel: usize,
 
     zoom_pos_pixel: f32,
@@ -188,9 +205,12 @@ pub struct AppWidget {
     end: usize,
     zoom_pos: usize,
     playhead: usize,
+    cursor: usize,
+    select: usize,
 
     channel_mode: ChannelMode,
     units_mode: UnitsMode,
+    play_state: PlayState,
 
     time_label: Entity,
     value_label: Entity,
@@ -200,6 +220,8 @@ pub struct AppWidget {
 
     // Player data
     is_playing: bool,
+    should_loop: bool,
+
     num_of_samples: usize,
     num_of_channels: usize,
     sample_rate: f64,
@@ -211,16 +233,40 @@ pub struct AppWidget {
 
     random_animation: usize,
     follow_playhead: bool,
+    panning: bool,
+
+    
+    scrollbar: Entity,
+    navigator: Entity,
+    navigator_window: Entity,
+    time_axis: Entity,
+    extend_selection_left: Entity,
+    extend_selection_right: Entity,
+    cursor_label: Entity,
+    select_label: Entity,
+    zoom_levels_dropdown: Entity,
+
+    // Replace this with a better method at some point
+    zoom_0: Entity,
+    zoom_1: Entity,
+    zoom_2: Entity,
+    zoom_3: Entity,
+    zoom_4: Entity,
+    zoom_5: Entity,
+    zoom_6: Entity,
+    zoom_7: Entity,
+    zoom_8: Entity,
+
+    waveform_left: Waveform,
+    waveform_right: Waveform,
 
 }
 
 impl AppWidget {
     pub fn new(collector: Collector, controller: SamplePlayerController) -> Self {
         Self {
-            left_channel: Default::default(),
-            right_channel: Default::default(),
+
             zoom_level: 3,
-            scroll_pos: 0,
 
             mute: 1.0,
             volume: 1.0,
@@ -237,9 +283,13 @@ impl AppWidget {
             end: 0,
             zoom_pos: 0,
             playhead: 0,
+            cursor: 0,
+            select: 0,
+
 
             channel_mode: ChannelMode::Left,
             units_mode: UnitsMode::Linear,
+            play_state: PlayState::Stopped,
 
             time_label: Entity::null(),
             value_label: Entity::null(),
@@ -248,6 +298,8 @@ impl AppWidget {
             waveview: Entity::null(),
 
             is_playing: false,
+            should_loop: true,
+            panning: false,
 
             play_button: Entity::null(),
 
@@ -256,56 +308,43 @@ impl AppWidget {
 
             random_animation: std::usize::MAX,
             follow_playhead: false,
+
+            scrollbar: Entity::null(),
+            navigator: Entity::null(),
+            navigator_window: Entity::null(),
+            time_axis: Entity::null(),
+            extend_selection_left: Entity::null(),
+            extend_selection_right: Entity::null(),
+            cursor_label: Entity::null(),
+            select_label: Entity::null(),
+            zoom_levels_dropdown: Entity::null(),
+
+            zoom_0: Entity::null(),
+            zoom_1: Entity::null(),
+            zoom_2: Entity::null(),
+            zoom_3: Entity::null(),
+            zoom_4: Entity::null(),
+            zoom_5: Entity::null(),
+            zoom_6: Entity::null(),
+            zoom_7: Entity::null(),
+            zoom_8: Entity::null(),
+
+
+            waveform_left: Waveform::new(),
+            waveform_right: Waveform::new(),
         }
     }
 }
 
-impl AppWidget {
-    // Opens the wav file, reads the audio samples into left and right audio buffers
-    
-    fn read_audio(&mut self, filename: &str) -> Result<(), AppError> {
-        let reader = hound::WavReader::open(filename).expect("Failed to open wav file");
-
-        let spec = reader.spec();
-        let audio: Vec<f32> = match (spec.bits_per_sample, spec.sample_format) {
-            (24, hound::SampleFormat::Int) => reader
-                .into_samples::<i32>()
-                .filter_map(Result::ok)
-                .map(|x| I24::new(x).unwrap().to_sample::<f32>())
-                .collect(),
-            (16, hound::SampleFormat::Int) => reader
-                .into_samples::<i16>()
-                .filter_map(Result::ok)
-                .map(|x| x.to_sample::<f32>())
-                .collect(),
-            _ => {
-                return Err(AppError::FileReadError);
-            }
-        };
-
-        let buffer_size = audio.len();
-
-        self.left_channel = vec![0.0; buffer_size / 2];
-        self.right_channel = vec![0.0; buffer_size / 2];
-
-        for (interleaved_samples, (left, right)) in audio.chunks(2).zip(
-            self.left_channel
-                .iter_mut()
-                .zip(self.right_channel.iter_mut()),
-        ) {
-            *left = interleaved_samples[0];
-            *right = interleaved_samples[1];
-        }
-
-        Ok(())
-    }
-
+impl AppWidget { 
     // Draw the audio waveforms
     fn draw_channel(
         &self,
         state: &mut State,
         entity: Entity,
-        data: &[f32],
+        waveform: &Waveform,
+        level: usize,
+        start: usize,
         posy: f32,
         height: f32,
         canvas: &mut Canvas<OpenGl>,
@@ -315,45 +354,30 @@ impl AppWidget {
         let w = state.data.get_width(self.waveview);
         let h = height;
 
-        if data.len() > 0 {
-            let audio = &data[self.start as usize..self.end as usize];
+        //if data.len() > 0 {
+            //let audio = &data[self.start as usize..self.end as usize];
+            //let audio = data;
 
-            // Fill the background
-            let mut path = Path::new();
-            path.rect(x, y, w, h);
-            canvas.fill_path(
-                &mut path,
-                Paint::color(femtovg::Color::rgba(40, 40, 40, 255)),
-            );
 
-            // Minimum time
-            let start_time = self.start as f32 / self.sample_rate as f32;
-            let end_time = self.end as f32 / self.sample_rate as f32;
+            // // Minimum time
+            // let start_time = self.start as f32 / self.sample_rate as f32;
+            // let end_time = self.end as f32 / self.sample_rate as f32;
 
-            let total_time = end_time - start_time;
+            // // Draw grid
+            // let first = round_up(start_time as u32, 1);
+            // let last = round_up(end_time as u32, 1);
 
-            if total_time > 0.0 && total_time < 60.0 {
-                let pixels_per_time_step = w / total_time;
-            }
-
-            // Draw grid
-            let pixels_per_second = w / total_time;
-
-        
-            let first = round_up(start_time as u32, 1);
-            let last = round_up(end_time as u32, 1);
-
-            for n in (first..last+1) {
-                let sample = self.sample_rate as f32 * n as f32 - self.start as f32;
-                let pixel = ((1.0 / self.samples_per_pixel as f32) * sample).round();
-                let mut path = Path::new();
-                path.move_to(x + pixel, y + 20.0);
-                path.line_to(x + pixel, y + 30.0);
-                let mut paint = Paint::color(femtovg::Color::rgba(90, 90, 90, 255));
-                paint.set_line_width(1.0);
-                paint.set_anti_alias(false);
-                canvas.stroke_path(&mut path, paint);
-            }
+            // for n in (first..last+1) {
+            //     let sample = self.sample_rate as f32 * n as f32 - self.start as f32;
+            //     let pixel = ((1.0 / self.samples_per_pixel as f32) * sample).round();
+            //     let mut path = Path::new();
+            //     path.move_to(x + pixel, y + 20.0);
+            //     path.line_to(x + pixel, y + 30.0);
+            //     let mut paint = Paint::color(femtovg::Color::rgba(90, 90, 90, 255));
+            //     paint.set_line_width(1.0);
+            //     paint.set_anti_alias(false);
+            //     canvas.stroke_path(&mut path, paint);
+            // }
 
             // Create two paths for min/max and rms
             let mut path1 = Path::new();
@@ -362,6 +386,8 @@ impl AppWidget {
             // Move to the center of the drawing region
             path1.move_to(x, y + h / 2.0);
             path2.move_to(x, y + h / 2.0);
+
+
 
             // TODO
             // Sample-level drawing
@@ -387,55 +413,112 @@ impl AppWidget {
             //     }
             // } else {
 
-                let mut chunks = audio.chunks(self.samples_per_pixel);
+                //let samples_per_pixel = audio.len() as f32 / w;
 
-                for chunk in 0..w as u32 {
-                    if let Some(c) = chunks.next() {
-                        let v_min = *c
-                            .iter()
-                            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-                            .unwrap();
-                        let v_max = *c
-                            .iter()
-                            .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-                            .unwrap();
-                        let v_mean: f32 = (c.iter().map(|s| s*s).sum::<f32>() / c.len() as f32).sqrt();
+                //let mut chunks = audio.chunks(samples_per_pixel as usize);
+                //let spp = self.num_of_samples as f32 / w;
+                //let mut chunks = audio.chunks(spp as usize);
 
-                        match self.units_mode {
-                            UnitsMode::Decibel => {
-                                let v_min_db =
-                                    1.0 + (20.0 * v_min.abs().log10()).max(-60.0) / 60.0;
-                                let v_max_db =
-                                    1.0 + (20.0 * v_max.abs().log10()).max(-60.0) / 60.0;
+                //println!("Samples per pixel: {}  {}", self.samples_per_pixel, audio.len() as f32 / w);
 
-                                let v_mean_db =
-                                    1.0 + (20.0 * v_mean.abs().log10()).max(-60.0) / 60.0;
+                let waveform_data = &waveform.get_data(level);
 
-                                let v_min_db = if v_min < 0.0 { -v_min_db } else { v_min_db };
+                 
 
-                                let v_max_db = if v_max < 0.0 { -v_max_db } else { v_max_db };
+                //println!("Start: {}", start);
 
-                                let v_mean_db = if v_mean < 0.0 { -v_mean_db } else { v_mean_db };
+                for pixel in 0..w as usize {
+
+                    if start + pixel >= waveform_data.len() {
+                        break;
+                    }
+
+                    let v_min = to_f32(waveform_data[start + pixel].0);
+                    let v_max = to_f32(waveform_data[start + pixel].1);
+                    let v_mean = to_f32(waveform_data[start + pixel].2);
+
+                    match self.units_mode {
+                        UnitsMode::Decibel => {
+                            let v_min_db =
+                                1.0 + (20.0 * v_min.abs().log10()).max(-60.0) / 60.0;
+                            let v_max_db =
+                                1.0 + (20.0 * v_max.abs().log10()).max(-60.0) / 60.0;
+
+                            let v_mean_db =
+                                1.0 + (20.0 * v_mean.abs().log10()).max(-60.0) / 60.0;
+
+                            let v_min_db = if v_min < 0.0 { -v_min_db } else { v_min_db };
+
+                            let v_max_db = if v_max < 0.0 { -v_max_db } else { v_max_db };
+
+                            let v_mean_db = if v_mean < 0.0 { -v_mean_db } else { v_mean_db };
 
 
 
-                                path1.line_to(x + (chunk as f32), y + h / 2.0 - v_min_db * h / 2.0);
-                                path1.line_to(x + (chunk as f32), y + h / 2.0 - v_max_db * h / 2.0);
+                            path1.line_to(x + (pixel as f32), y + h / 2.0 - v_min_db * h / 2.0);
+                            path1.line_to(x + (pixel as f32), y + h / 2.0 - v_max_db * h / 2.0);
 
-                                path2.move_to(x + (chunk as f32), y + h / 2.0 + v_mean_db * h / 2.0);
-                                path2.line_to(x + (chunk as f32), y + h / 2.0 - v_mean_db * h / 2.0);
-                            }
+                            path2.move_to(x + (pixel as f32), y + h / 2.0 + v_mean_db * h / 2.0);
+                            path2.line_to(x + (pixel as f32), y + h / 2.0 - v_mean_db * h / 2.0);
+                        }
 
-                            UnitsMode::Linear => {
-                                path1.line_to(x + (chunk as f32), y + h / 2.0 - v_min * h / 2.0);
-                                path1.line_to(x + (chunk as f32), y + h / 2.0 - v_max * h / 2.0);
+                        UnitsMode::Linear => {
+                            path1.line_to(x + (pixel as f32), y + h / 2.0 - v_min * h / 2.0);
+                            path1.line_to(x + (pixel as f32), y + h / 2.0 - v_max * h / 2.0);
 
-                                path2.move_to(x + (chunk as f32), y + h / 2.0 + v_mean * h / 2.0);
-                                path2.line_to(x + (chunk as f32), y + h / 2.0 - v_mean * h / 2.0);
-                            }
+                            path2.move_to(x + (pixel as f32), y + h / 2.0 + v_mean * h / 2.0);
+                            path2.line_to(x + (pixel as f32), y + h / 2.0 - v_mean * h / 2.0);
                         }
                     }
                 }
+
+                // for chunk in 0..w as u32 {
+                //     if let Some(c) = chunks.next() {
+                //         let v_min = *c
+                //             .iter()
+                //             .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+                //             .unwrap();
+                //         let v_max = *c
+                //             .iter()
+                //             .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+                //             .unwrap();
+                //         let v_mean: f32 = (c.iter().map(|s| s*s).sum::<f32>() / c.len() as f32).sqrt();
+
+                //         match self.units_mode {
+                //             UnitsMode::Decibel => {
+                //                 let v_min_db =
+                //                     1.0 + (20.0 * v_min.abs().log10()).max(-60.0) / 60.0;
+                //                 let v_max_db =
+                //                     1.0 + (20.0 * v_max.abs().log10()).max(-60.0) / 60.0;
+
+                //                 let v_mean_db =
+                //                     1.0 + (20.0 * v_mean.abs().log10()).max(-60.0) / 60.0;
+
+                //                 let v_min_db = if v_min < 0.0 { -v_min_db } else { v_min_db };
+
+                //                 let v_max_db = if v_max < 0.0 { -v_max_db } else { v_max_db };
+
+                //                 let v_mean_db = if v_mean < 0.0 { -v_mean_db } else { v_mean_db };
+
+
+
+                //                 path1.line_to(x + (chunk as f32), y + h / 2.0 - v_min_db * h / 2.0);
+                //                 path1.line_to(x + (chunk as f32), y + h / 2.0 - v_max_db * h / 2.0);
+
+                //                 path2.move_to(x + (chunk as f32), y + h / 2.0 + v_mean_db * h / 2.0);
+                //                 path2.line_to(x + (chunk as f32), y + h / 2.0 - v_mean_db * h / 2.0);
+                //             }
+
+                //             UnitsMode::Linear => {
+                //                 path1.line_to(x + (chunk as f32), y + h / 2.0 - v_min * h / 2.0);
+                //                 path1.line_to(x + (chunk as f32), y + h / 2.0 - v_max * h / 2.0);
+
+                //                 path2.move_to(x + (chunk as f32), y + h / 2.0 + v_mean * h / 2.0);
+                //                 path2.line_to(x + (chunk as f32), y + h / 2.0 - v_mean * h / 2.0);
+                //             }
+                //         }
+                //     }
+                // }
             //}
 
             // Draw min/max paths
@@ -451,50 +534,7 @@ impl AppWidget {
                 paint.set_anti_alias(false);
                 canvas.stroke_path(&mut path2, paint);                
             }
-
-
-            // TODO
-            // Draw cursor
-            // let mut path = Path::new();
-            // path.move_to(x + self.zoom_pos_pixel, y);
-            // path.line_to(x + self.zoom_pos_pixel, y + h);
-            // paint.set_line_width(1.0);
-            // paint.set_anti_alias(false);
-            // canvas.fill_path(
-            //     &mut path,
-            //     Paint::color(femtovg::Color::rgba(255, 50, 50, 255)),
-            // );
-
-
-          
-
-            // Draw selection
-            // TODO
-
-
-
-            // Draw playhead
-            let playhead = self.controller.playhead() as f64;
-           
-            let pixels_per_sample = 1.0 / self.samples_per_pixel as f32;
-            let playheadx = x + pixels_per_sample * (playhead as f32 - self.start as f32);
-
-            let mut path = Path::new();
-            if self.follow_playhead && self.start > 0 {
-                path.move_to(x + w/2.0, y);
-                path.line_to(x + w/2.0, y + h);
-            } else {
-                path.move_to(playheadx.floor(), y);
-                path.line_to(playheadx.floor(), y + h);                
-            }
-
-            paint.set_line_width(1.0);
-            paint.set_anti_alias(false);
-            canvas.fill_path(
-                &mut path,
-                Paint::color(femtovg::Color::rgba(50, 200, 50, 255)),
-            );
-        }
+        //}
     }
 }
 
@@ -519,13 +559,55 @@ impl BuildHandler for AppWidget {
         // Header
         let header = Element::new().build(state, entity, |builder| builder.class("header"));
         
+
+        self.navigator = Element::new().build(state, entity, |builder| 
+            builder
+                .class("navigator")
+                .set_height(Length::Pixels(100.0))
+        );
+
+        self.navigator_window = Element::new().build(state, self.navigator, |builder| 
+            builder
+                .class("navigator_window")
+                .set_position(Position::Absolute)
+                .set_height(Length::Pixels(100.0))
+        );
+
+
+        self.time_axis = Element::new().build(state, entity, |builder| 
+            builder
+                .class("time_axis")
+                .set_height(Length::Pixels(20.0))
+        );
+
         // Used to add space between header and footer but isn't actually visible
         // TODO - create widget that actually displays a waveform
         self.waveview = Element::new().build(state, entity, |builder| {
             builder
                 .class("waveview")
-                .set_visibility(Visibility::Invisible)
+                .set_hoverability(false)
+                //.set_visibility(Visibility::Invisible)
         });
+
+        self.extend_selection_left = Button::with_label("<").build(state, self.waveview, |builder| 
+            builder
+                .set_position(Position::Absolute)
+                .set_top(Length::Pixels(10.0))
+                .set_width(Length::Pixels(30.0))
+                .set_height(Length::Pixels(30.0))
+                .set_background_color(Color::red())
+                .set_visibility(Visibility::Invisible)
+        );
+
+        self.extend_selection_right = Button::with_label("<").build(state, self.waveview, |builder| 
+            builder
+                .set_position(Position::Absolute)
+                .set_top(Length::Pixels(10.0))
+                .set_width(Length::Pixels(30.0))
+                .set_height(Length::Pixels(30.0))
+                .set_background_color(Color::red())
+                .set_visibility(Visibility::Invisible)
+        );
 
         // Footer
         let footer = Element::new().build(state, entity, |builder| builder.class("footer"));
@@ -578,10 +660,21 @@ impl BuildHandler for AppWidget {
                 builder
                     .set_text(ICON_TO_END)
                     .set_font("Icons")
-                    .class("last")
             });
 
-        self.playhead_label = Label::new("Time: -").build(state, header, |builder| {
+            let loop_button = Checkbox::new(true)
+                .on_unchecked(Event::new(AppEvent::Loop(false)).target(entity))        
+                .on_checked(Event::new(AppEvent::Loop(true)).target(entity))
+                .with_icon_checked(ICON_LOOP)
+                .with_icon_unchecked(ICON_LOOP)        
+                .build(state, transport, |builder| {
+                    builder
+                        .set_font("Icons")
+                        .class("loop")
+                        .class("last")
+            });
+
+        self.playhead_label = Label::new("00''00'00.0").build(state, header, |builder| {
             builder.class("info").set_margin(Length::Pixels(10.0))
         });
 
@@ -657,6 +750,15 @@ impl BuildHandler for AppWidget {
 
 
         // FOOTER
+
+        self.cursor_label = Label::new("Cursor:  00''00'00.0").build(state, footer, |builder| {
+            builder.class("info").set_margin(Length::Pixels(20.0))
+        });
+        
+        self.select_label = Label::new("Select End:  00''00'00.0").build(state, footer, |builder| {
+            builder.class("info").set_margin(Length::Pixels(20.0))
+        });
+        
         Checkbox::new(false)
             .on_unchecked(Event::new(AppEvent::FollowPlayhead(false)).target(entity))        
             .on_checked(Event::new(AppEvent::FollowPlayhead(true)).target(entity))
@@ -672,84 +774,76 @@ impl BuildHandler for AppWidget {
         let zoom_controls =
             Element::new().build(state, footer, |builder| builder.class("zoom_controls"));
 
-        Button::with_label(ICON_MINUS).build(state, zoom_controls, |builder| {
+        Button::with_label(ICON_MINUS)
+        .on_press(Event::new(AppEvent::DecZoom).target(entity))
+        .build(state, zoom_controls, |builder| {
             builder
                 .set_font("Icons")
                 .class("zoom")
                 .class("first")
         });
 
-        let zoom_levels_dropdown = ZoomDropdown::new()
+        let (zoom_levels_dropdown, _, zoom_levels_dropdown_container) = ZoomDropdown::new()
             .build(state, zoom_controls, |builder| builder.class("zoom"));
 
-        let zoom_levels_list = RadioList::new().build(state, zoom_levels_dropdown, |builder| {
+        self.zoom_levels_dropdown = zoom_levels_dropdown;
+
+        let zoom_levels_list = RadioList::new().build(state, zoom_levels_dropdown_container, |builder| {
             builder
                 .class("checklist")
                 .set_flex_direction(FlexDirection::Column)
         });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(10)))
+        self.zoom_8 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(8, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("147X").class("zoom")
             });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(9)))
-            .build(state, zoom_levels_list, |builder| {
-                builder.set_text("63X").class("zoom")
-            });
-
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(8)))
+        self.zoom_7 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(7, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("49X").class("zoom")
             });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(7)))
+        self.zoom_6 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(6, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("21X").class("zoom")
             });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(6)))
+        self.zoom_5 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(5, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("9X").class("zoom")
             });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(5)))
-            .build(state, zoom_levels_list, |builder| {
-                builder.set_text("7X").class("zoom")
-            });
-
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(4)))
+        self.zoom_4 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(4, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("3X").class("zoom")
             });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(3)))
+        self.zoom_3 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(3, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("1X").class("zoom")
             }).set_checked(state, true);
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(2)))
+        self.zoom_2 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(2, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("0.5X").class("zoom")
             });
 
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(1)))
+        self.zoom_1 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(1, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("0.25X").class("zoom")
             });
         
-        RadioButton::new()
-            .on_checked(Event::new(AppEvent::SetZoomLevel(0)))
+        self.zoom_0 = RadioButton::new()
+            .on_checked(Event::new(AppEvent::SetZoomLevel(0, ZoomMode::Cursor)))
             .build(state, zoom_levels_list, |builder| {
                 builder.set_text("0.1X").class("zoom")
             });
@@ -761,7 +855,9 @@ impl BuildHandler for AppWidget {
         //         builder.set_text("FIT").class("zoom")
         //     });
 
-        Button::with_label(ICON_PLUS).build(state, zoom_controls, |builder| {
+        Button::with_label(ICON_PLUS)
+        .on_press(Event::new(AppEvent::IncZoom).target(entity))
+        .build(state, zoom_controls, |builder| {
             builder
                 .set_font("Icons")
                 .class("zoom")
@@ -785,92 +881,143 @@ impl EventHandler for AppWidget {
                         let total_samples =
                         (state.data.get_width(entity) * self.samples_per_pixel as f32) as i32;
                         self.end = self.start + (total_samples as usize).min(self.num_of_samples);
+                        if let Some(file) = self.controller.file.as_ref() {
+                            self.waveform_left.set_num_pixels(&file.data[0..self.num_of_samples], state.data.get_width(entity) as usize);
+                            self.waveform_right.set_num_pixels(&file.data[self.num_of_samples..self.num_of_samples*2], state.data.get_width(entity) as usize);
+                        }
                     }
                 }
 
-                // Clicking on the waveform moves the playhead to that position
+                
                 WindowEvent::MouseDown(button) => {
+                    // Clicking on the waveform moves the cursor to that position
                     if event.target == entity {
                         if *button == MouseButton::Left {
-                            self.controller.seek(self.zoom_pos as f64 / self.sample_rate);
+                            // Move cursor to clicked position
+                            let cursor_pos_pixel = state.mouse.left.pos_down.0 - state.data.get_posx(entity);
+                            self.cursor = self.start + (self.samples_per_pixel as f32 * cursor_pos_pixel) as usize;
+                            self.select = self.cursor;
+
+                            let time = self.cursor as f32 / self.sample_rate as f32;
+                            let time_value: TimeValue = time.into();
+                            let time_string = format!("Cursor:  {}", time_value);
+                            self.cursor_label.set_text(state, &time_string);
+
+                            // Move extend buttons to cursor
+                            self.extend_selection_left.set_left(state, Length::Pixels(cursor_pos_pixel - 40.0));
+                            self.extend_selection_right.set_left(state, Length::Pixels(cursor_pos_pixel + 10.0));
                         }
+                    }
+                    // Clicking on the navigator window allows smooth panning of the waveform
+                    if event.target == self.navigator_window && !self.follow_playhead {
+                        self.panning = true;
+                        state.capture(entity);
+                        event.consume();
+                    }
+                }
+
+                WindowEvent::MouseUp(button) => {
+                    if *button == MouseButton::Left {
+                        self.panning = false;
+                        state.release(entity);
+                        //event.consume();
                     }
                 }
 
                 // Moving the mouse moves the cursor position
                 WindowEvent::MouseMove(x, _) => {
                     if event.target == entity {
-                        if self.num_of_samples > 0 {
-                            self.zoom_pos_pixel = *x - state.data.get_posx(entity);
 
-                            self.zoom_pos = self.start
-                                + (self.samples_per_pixel as f32 * self.zoom_pos_pixel) as usize;
+                        if self.panning {
+                            let width = state.data.get_width(self.navigator);
+                            let window_width = state.data.get_width(self.navigator_window);
 
-                            if self.zoom_pos >= self.num_of_samples {
-                                self.zoom_pos = self.num_of_samples - 1;
+                            //let mut dx = (state.mouse.left.pos_down.0 - state.data.get_posx(entity));
+                            let mut dx = *x - state.data.get_posx(entity);
+
+                            if dx <= window_width / 2.0 {
+                                dx = window_width / 2.0;
+                            }
+                            if dx >= width - window_width / 2.0 {
+                                dx = width - window_width / 2.0;
                             }
 
-                            state.insert_event(Event::new(WindowEvent::Redraw));
+                            let nx = dx - window_width / 2.0;
 
-                            // Update the time and value display
-                            // TODO
-                            // if self.left_channel.len() > 0 {
-                            //     let time = self.zoom_pos as f32 / 44100.0;
-                            //     let time_value: TimeValue = time.into();
-                            //     let time_string = format!("Time: {}", time_value);
-                            //     self.time_label.set_text(state, &time_string);
+                            
+                            self.navigator_window
+                                .set_left(state, Length::Pixels(nx));
 
-                            //     match self.units_mode {
-                            //         UnitsMode::Linear => {
-                            //             let value = self.left_channel[self.zoom_pos as usize];
-                            //             let value_string = format!("Value: {:+.2e}", value);
-                            //             self.value_label.set_text(state, &value_string);
-                            //         }
+                            self.start = ((nx / width) * self.num_of_samples as f32) as usize;
+                            self.end = ((window_width / width) * self.num_of_samples as f32) as usize + self.start;
 
-                            //         UnitsMode::Decibel => {
-                            //             let value = 10.0
-                            //                 * self.left_channel[self.zoom_pos as usize].abs().log10();
-                            //             let value_string = format!("Value: {:.2} dB", value);
-                            //             self.value_label.set_text(state, &value_string);
-                            //         }
-                            //     }
-                            // }   
+                        } else {
+                            if state.mouse.left.pressed == entity && state.mouse.left.state == MouseButtonState::Pressed {
+
+                                
+
+                                let start_pos = state.mouse.left.pos_down.0 - state.data.get_posx(entity);
+                                let end_pos = *x - state.data.get_posx(entity);
+
+                                if start_pos > end_pos {
+                                    self.cursor =  self.start + (self.samples_per_pixel as f32 * end_pos) as usize;
+                                    self.select =  self.start + (self.samples_per_pixel as f32 * start_pos) as usize;
+                                } else if end_pos > start_pos {
+                                    self.cursor =  self.start + (self.samples_per_pixel as f32 * start_pos) as usize;
+                                    self.select =  self.start + (self.samples_per_pixel as f32 * end_pos) as usize;
+                                }
+
+                                let time = self.cursor as f32 / self.sample_rate as f32;
+                                let time_value: TimeValue = time.into();
+                                let time_string = format!("Cursor:  {}", time_value);
+                                self.cursor_label.set_text(state, &time_string);
+
+                                let time = self.select as f32 / self.sample_rate as f32;
+                                let time_value: TimeValue = time.into();
+                                let time_string = format!("Select End:  {}", time_value);
+                                self.select_label.set_text(state, &time_string);
+
+                                // if (end_pos - start_pos).abs() > 2.0 {
+                                //     self.select =  self.start + (self.samples_per_pixel as f32 * select_end_pos) as usize;
+                                // }
+
+                                state.insert_event(Event::new(WindowEvent::Redraw));
+                            }
+
+                            if self.num_of_samples > 0 {
+                                self.zoom_pos_pixel = *x - state.data.get_posx(entity);
+
+                                self.zoom_pos = self.start
+                                    + (self.samples_per_pixel as f32 * self.zoom_pos_pixel) as usize;
+
+                                if self.zoom_pos >= self.num_of_samples {
+                                    self.zoom_pos = self.num_of_samples - 1;
+                                }
+
+                            
+                            
+                            }                            
                         }
+
+
                         
                     }
+                    
                 }
 
                 // Scrolling the mouse will pan the waveform, scrolling with ctrl will zoom the waveform at the cursor
                 WindowEvent::MouseScroll(_, y) => {
                     if *y > 0.0 {
                         if state.modifiers.ctrl {
+                            // ZOOM IN
                             if self.zoom_level != SAMPLES_PER_PIXEL.len() - 1 {
                                 self.zoom_level += 1;
                             }
 
-                            self.samples_per_pixel = SAMPLES_PER_PIXEL[self.zoom_level];
+                            state.insert_event(Event::new(AppEvent::SetZoomLevel(self.zoom_level, ZoomMode::Mouse)).target(entity));
 
-                            let width = state.data.get_width(entity);
-
-                            // Total number of samples for the whole view width
-                            let total_samples = (state.data.get_width(entity)
-                                * self.samples_per_pixel as f32) as usize;
-
-                            let mut new_start = 0;
-                            let mut new_end = total_samples;
-
-                            let offset = self.zoom_pos as i32
-                                - (self.zoom_pos_pixel * self.samples_per_pixel as f32) as i32;
-                            
-                            if offset > 0 {
-                                new_start = offset as usize;
-                                new_end = total_samples as usize + offset as usize;
-                            }
-
-                            self.end = new_end.min(self.num_of_samples - 1);
-                            self.start = new_start.max(0).min(self.end);
                         } else {
-                            
+                            // PAN
                             let samples_to_start = self.start;
 
                             let new_start;
@@ -893,35 +1040,16 @@ impl EventHandler for AppWidget {
                         event.consume();
                     } else if *y < 0.0 {
                         if state.modifiers.ctrl {
+                            // ZOOM OUT
                             if self.zoom_level != 0 {
                                 self.zoom_level -= 1;
                             }
 
-                            self.samples_per_pixel = SAMPLES_PER_PIXEL[self.zoom_level];
-
-                            let total_samples = (state.data.get_width(entity)
-                                * self.samples_per_pixel as f32)
-                                as usize;
-
-                            let width = state.data.get_width(entity);
-
-                            let mut new_start = 0;
-                            let mut new_end = total_samples;
-
-
-                            let offset = self.zoom_pos as i32
-                                - (self.zoom_pos_pixel * self.samples_per_pixel as f32) as i32;
-                            
-                            if offset > 0 {
-                                new_start = offset as usize;
-                                new_end = total_samples as usize + offset as usize;
-                            }
-
-                            self.end = new_end.min(self.num_of_samples - 1);
-                            self.start = new_start.max(0).min(self.end);
+                            state.insert_event(Event::new(AppEvent::SetZoomLevel(self.zoom_level, ZoomMode::Mouse)).target(entity));
 
                         } else {
-
+                            //PAN
+                            
                             let samples_to_end = self.num_of_samples - 1 - self.end;
 
                             let new_start;
@@ -951,7 +1079,7 @@ impl EventHandler for AppWidget {
 
 
                 WindowEvent::KeyDown(code, key) => {
-                    println!("Key: {:?} {:?}", code, key);
+                    //println!("Key: {:?} {:?}", code, key);
                     match code {
                         Code::Space => {
                             if self.is_playing {
@@ -975,15 +1103,29 @@ impl EventHandler for AppWidget {
                             if self.playhead > 0 {
                                 let current_time = self.playhead as f64 / self.sample_rate;
                                 let new_time = (current_time - 1.0).max(0.0);
+                                let cursor_time = self.cursor as f64 / self.sample_rate;
                                 if self.is_playing {
+                                    if new_time <= cursor_time {
+                                        self.controller.seek(cursor_time);
+                                    } else {
+                                        self.controller.seek(new_time);
+                                    }
                                     
-                                    self.controller.seek(new_time);
                                 } else {
                                     self.playhead -= self.samples_per_pixel;
                                     //println!("playhead: {}", self.playhead);
                                     let current_time = (self.playhead as f64 / self.sample_rate).max(0.0);
-                                    self.controller.seek(current_time);
+                                    if current_time <= cursor_time {
+                                        self.controller.seek(cursor_time);
+                                    } else {
+                                        self.controller.seek(current_time);
+                                    }
                                 }
+
+                                let time = self.playhead as f32 / self.sample_rate as f32;
+                                let time_value: TimeValue = time.into();
+                                let time_string = format!("{}", time_value);
+                                self.playhead_label.set_text(state, &time_string);
 
                                 state.insert_event(Event::new(WindowEvent::Redraw));
                             }
@@ -1002,6 +1144,11 @@ impl EventHandler for AppWidget {
                                     let current_time = (self.playhead as f64 / self.sample_rate).max(0.0);
                                     self.controller.seek(current_time);
                                 }
+
+                                let time = self.playhead as f32 / self.sample_rate as f32;
+                                let time_value: TimeValue = time.into();
+                                let time_string = format!("{}", time_value);
+                                self.playhead_label.set_text(state, &time_string);
 
                                 state.insert_event(Event::new(WindowEvent::Redraw));
                             
@@ -1041,7 +1188,7 @@ impl EventHandler for AppWidget {
                     }
 
 
-                    state.insert_event(Event::new(AppEvent::SetZoomLevel(3)).target(entity));
+                    state.insert_event(Event::new(AppEvent::SetZoomLevel(3, ZoomMode::Cursor)).target(entity));
                 }
 
                 // Load an audio file using a file dialog
@@ -1066,10 +1213,13 @@ impl EventHandler for AppWidget {
                                 self.sample_rate = file.sample_rate;
                                 self.num_of_samples = file.num_samples;
                                 println!("Length: {} ", file.num_samples);
+
+                                self.waveform_left.load(&file.data[0..self.num_of_samples], state.data.get_width(entity) as usize);
+                                self.waveform_right.load(&file.data[self.num_of_samples..self.num_of_samples*2], state.data.get_width(entity) as usize);
                             }
 
 
-                            state.insert_event(Event::new(AppEvent::SetZoomLevel(3)).target(entity));
+                            state.insert_event(Event::new(AppEvent::SetZoomLevel(3, ZoomMode::Cursor)).target(entity));
 
                             //let samples_per_pixel = 441.0;
 
@@ -1106,33 +1256,105 @@ impl EventHandler for AppWidget {
 
                 // Change the current zoom level
                 // TODO - zoom at cursor/playhead position
-                AppEvent::SetZoomLevel(val) => {
+                AppEvent::SetZoomLevel(val, zoom_mode) => {
+                    
+                    
+                    
+                    let (zoom, zoom_pos) = if *zoom_mode == ZoomMode::Mouse {
+                        (self.zoom_pos, self.zoom_pos_pixel)
+                    } else if self.select != self.cursor {
+                        let zoom = if self.select < self.cursor {
+                            self.select + (self.cursor - self.select) / 2
+                        } else {
+                            self.cursor + (self.select - self.cursor) / 2
+                        };
+                        
+                        (zoom, (zoom - self.start) as f32 / self.samples_per_pixel as f32)
+                    } else {
+                        (self.cursor, (self.cursor - self.start) as f32 / self.samples_per_pixel as f32)
+                    };
+                    
                     self.zoom_level = *val;
-
                     self.samples_per_pixel = SAMPLES_PER_PIXEL[self.zoom_level];
 
                     let total_samples =
                         (state.data.get_width(entity) * self.samples_per_pixel as f32) as i32;
 
-                    let new_start = 0;
-                    let new_end = total_samples as usize;
+                    let mut new_start = 0;
+                    let mut new_end = total_samples as usize;
 
-                    self.start = new_start.max(0);
+                    
+                    let offset = zoom as i32
+                        - (zoom_pos * self.samples_per_pixel as f32) as i32;
+                    
+                    if offset > 0 {
+                        new_start = offset as usize;
+                        new_end = total_samples as usize + offset as usize;
+                    }
+                    
                     self.end = new_end.min(self.num_of_samples - 1);
+                    self.start = new_start.max(0).min(self.end);
 
+                    // This is terrible and I hate myself
+                    let zoom_entity = match self.zoom_level {
+                        0 => self.zoom_0,
+                        1 => self.zoom_1,
+                        2 => self.zoom_2,
+                        3 => self.zoom_3,
+                        4 => self.zoom_4,
+                        5 => self.zoom_5,
+                        6 => self.zoom_6,
+                        7 => self.zoom_7,
+                        8 => self.zoom_8,
+                        _=> Entity::new(0,0),
+                    };
+
+                    // Send an event that will be intercepted by the radio list to change the zoom selection
+                    state.insert_event(Event::new(CheckboxEvent::Check).target(zoom_entity));
+                    // Let the dropdown know it should change
+                    state.insert_event(Event::new(AppEvent::SetZoomLevel(self.zoom_level, ZoomMode::Cursor)).target(self.zoom_levels_dropdown).propagate(Propagation::Direct));
                     state.insert_event(Event::new(WindowEvent::Redraw));
+                }
+
+                AppEvent::IncZoom => {
+                    if self.zoom_level != SAMPLES_PER_PIXEL.len() - 1 {
+                        self.zoom_level += 1;
+                    }
+
+                    state.insert_event(Event::new(AppEvent::SetZoomLevel(self.zoom_level, ZoomMode::Cursor)).target(entity));
+                }
+
+                AppEvent::DecZoom => {
+                    if self.zoom_level != 0 {
+                        self.zoom_level -= 1;
+                    }
+
+                    state.insert_event(Event::new(AppEvent::SetZoomLevel(self.zoom_level,  ZoomMode::Cursor)).target(entity));
                 }
                 
                 // Initiate playback
                 AppEvent::Play => {
+                    
                     state.insert_event(Event::new(CheckboxEvent::Uncheck).target(self.play_button));
+
+                    // If stopped, play from cursor
+                    if self.play_state == PlayState::Stopped {
+                        if self.cursor != self.start {
+                            let cursor_time = self.cursor as f64 / self.sample_rate;
+                            self.controller.seek(cursor_time);
+                        }      
+                    }
+
+
                     self.controller.play();
                     state.style.border_color.play_animation(entity, self.random_animation);
                     self.is_playing = true;
+                    self.play_state = PlayState::Playing;
                 }
 
                 // Pause playback
                 AppEvent::Pause => {
+                    self.play_state = PlayState::Paused;
                     state.insert_event(Event::new(CheckboxEvent::Check).target(self.play_button));
                     self.controller.stop();
                     self.is_playing = false;
@@ -1140,10 +1362,46 @@ impl EventHandler for AppWidget {
 
                 // Stop playback
                 AppEvent::Stop => {
+
+                    self.play_state = PlayState::Stopped;
+
                     self.controller.stop();
-                    self.controller.seek(0.0);
+
+                    if self.cursor != self.start {
+                        let cursor_time = self.cursor as f64 / self.sample_rate;
+                        self.controller.seek(cursor_time);
+                        self.playhead = self.cursor;
+                    } else {
+                        self.controller.seek(0.0);
+                        self.playhead = 0;
+                    }
+
                     state.insert_event(Event::new(CheckboxEvent::Check).target(self.play_button));
                     self.is_playing = false;
+
+                    let time = self.playhead as f32 / self.sample_rate as f32;
+                    let time_value: TimeValue = time.into();
+                    let time_string = format!("{}", time_value);
+                    self.playhead_label.set_text(state, &time_string);
+
+                    if self.follow_playhead {
+                        let playhead_pos_pixel = state.data.get_width(self.waveview) / 2.0;
+                        let offset = self.playhead as i32 - (playhead_pos_pixel * self.samples_per_pixel as f32) as i32;
+                        let total_samples = (state.data.get_width(entity)
+                                            * self.samples_per_pixel as f32) as usize;
+
+                        let mut new_start = 0;
+                        let mut new_end = total_samples;
+
+                        if offset > 0 {
+                            new_start = offset as usize;
+                            new_end = total_samples as usize + offset as usize;
+                        }
+
+                        self.end = new_end.min(self.num_of_samples - 1);
+                        self.start = new_start.max(0).min(self.end);                        
+                    }
+
                 }
 
                 // Move playhead to start
@@ -1155,6 +1413,13 @@ impl EventHandler for AppWidget {
                     self.end = (total_samples as usize).min(self.num_of_samples);
                     self.start = self.start.max(0);
                     self.end = self.end.min(self.num_of_samples - 1);
+                    self.cursor = 0;
+                    self.select = 0;
+
+                    let time = self.playhead as f32 / self.sample_rate as f32;
+                    let time_value: TimeValue = time.into();
+                    let time_string = format!("{}", time_value);
+                    self.playhead_label.set_text(state, &time_string);
                 }
 
                 // Move playhead to end
@@ -1166,6 +1431,26 @@ impl EventHandler for AppWidget {
 
                 AppEvent::FollowPlayhead(val) => {
                     self.follow_playhead = *val;
+
+                    let playhead_pos_pixel = state.data.get_width(self.waveview) / 2.0;
+                    let offset = self.playhead as i32 - (playhead_pos_pixel * self.samples_per_pixel as f32) as i32;
+                    let total_samples = (state.data.get_width(entity)
+                                        * self.samples_per_pixel as f32) as usize;
+
+                    let mut new_start = 0;
+                    let mut new_end = total_samples;
+
+                    if offset > 0 {
+                        new_start = offset as usize;
+                        new_end = total_samples as usize + offset as usize;
+                    }
+
+                    self.end = new_end.min(self.num_of_samples - 1);
+                    self.start = new_start.max(0).min(self.end);
+                }
+
+                AppEvent::Loop(val) => {
+                    self.should_loop = *val;
                 }
 
                 AppEvent::Volume(val) => {
@@ -1188,59 +1473,263 @@ impl EventHandler for AppWidget {
 
     // Draw the waveform
     fn on_draw(&mut self, state: &mut State, entity: Entity, canvas: &mut Canvas<OpenGl>) {
+        let x = state.data.get_posx(self.waveview);
         let y = state.data.get_posy(self.waveview);
         let h = state.data.get_height(self.waveview);
         let w = state.data.get_width(self.waveview);
 
+
+        let navigator_posx = state.data.get_posx(self.navigator);
+        let navigator_posy = state.data.get_posy(self.navigator);
+        let navigator_width = state.data.get_width(self.navigator);
+        let navigator_height = state.data.get_height(self.navigator);
+
+        let mut path = Path::new();
+        path.rect(navigator_posx, navigator_posy, navigator_width, navigator_height);
+        canvas.fill_path(
+            &mut path,
+            Paint::color(femtovg::Color::rgba(30, 30, 30, 255)),
+        );
+
+        let mut path = Path::new();
+        path.rect(x, y, w, h);
+        canvas.fill_path(
+            &mut path,
+            Paint::color(femtovg::Color::rgba(30, 30, 30, 255)),
+        );
+
+        let cursor_pos = if self.cursor > self.start && self.cursor < self.end {
+
+            (self.cursor - self.start) as f32  / self.samples_per_pixel as f32
+
+        } else if self.cursor > self.end {
+            x + w
+        } else {
+            x
+        };
+
+        let select_pos = if self.select > self.start && self.select < self.end {
+
+            (self.select - self.start) as f32  / self.samples_per_pixel as f32
+
+        } else if self.select > self.end {
+            x + w
+        } else {
+            x
+        };
+
+        // Draw selection
+        let mut path = Path::new();
+        if self.cursor < self.select {
+            
+            path.rect(x + cursor_pos, y, select_pos - cursor_pos, h);
+                            
+        } else if self.select < self.cursor {
+            path.rect(x + select_pos, y, cursor_pos - select_pos, h);
+        }
+        canvas.fill_path(
+            &mut path,
+            Paint::color(femtovg::Color::rgba(60, 60, 60, 150)),
+        );  
+        
+
         if let Some(file) = self.controller.file.as_ref() {
+
+            let time_axis_posx = state.data.get_posx(self.time_axis);
+            let time_axis_posy = state.data.get_posy(self.time_axis);
+            let time_axis_width = state.data.get_width(self.time_axis);
+            let time_axis_height = state.data.get_height(self.time_axis);
+
+            // Minimum time
+            let start_time = self.start as f32 / self.sample_rate as f32;
+            let end_time = self.end as f32 / self.sample_rate as f32;
+
+            // Draw grid
+            let first = round_up(start_time as u32, 1);
+            let last = round_up(end_time as u32, 1);
+
+            for n in (first..last+1) {
+                let sample = self.sample_rate as f32 * n as f32 - self.start as f32;
+                let pixel = ((1.0 / self.samples_per_pixel as f32) * sample).round();
+                let mut path = Path::new();
+                path.move_to(time_axis_posx + pixel, time_axis_posy);
+                path.line_to(time_axis_posx + pixel, time_axis_posy + time_axis_height);
+                let mut paint = Paint::color(femtovg::Color::rgba(90, 90, 90, 255));
+                paint.set_line_width(1.0);
+                paint.set_anti_alias(false);
+                canvas.stroke_path(&mut path, paint);
+            }
+
+
+            let start = round_up(self.start as u32, self.samples_per_pixel as u32) as usize / self.samples_per_pixel;
 
             match self.channel_mode {
                 ChannelMode::Left => {
-                    self.draw_channel(state, entity, &file.data[0..self.num_of_samples], y, h, canvas);
+                    self.draw_channel(state, entity, &self.waveform_left, SAMPLES_PER_PIXEL.len(), 0, navigator_posy, navigator_height, canvas);
+                    self.draw_channel(state, entity, &self.waveform_left,self.zoom_level, start, y, h, canvas);
                 }
 
                 ChannelMode::Right => {
-                    self.draw_channel(state, entity, &file.data[self.num_of_samples..self.num_of_samples*2], y, h, canvas);
+                    self.draw_channel(state, entity, &self.waveform_right, SAMPLES_PER_PIXEL.len(), 0, navigator_posy, navigator_height, canvas);
+                    self.draw_channel(state, entity, &self.waveform_right, self.zoom_level, start, y, h, canvas);
                 }
 
                 ChannelMode::Both => {
-                    self.draw_channel(state, entity, &file.data[0..file.num_samples / 2], y, h / 2.0, canvas);
+                    self.draw_channel(state, entity, &self.waveform_left, SAMPLES_PER_PIXEL.len(), 0, navigator_posy, navigator_height/2.0, canvas);
+                    self.draw_channel(state, entity, &self.waveform_right, SAMPLES_PER_PIXEL.len(), 0, navigator_posy + navigator_height/2.0, navigator_height/2.0, canvas);
+                    self.draw_channel(state, entity, &self.waveform_left, self.zoom_level, start, y, h / 2.0, canvas);
                     self.draw_channel(
                         state,
                         entity,
-                        &file.data[(file.num_samples / 2)+1..file.num_samples],
+                        &self.waveform_right,
+                        self.zoom_level,
+                        start,
                         y + h / 2.0,
                         h / 2.0,
                         canvas,
                     );
+
                 }
             }
 
         }
+        
+        // Draw Navigator Window
+        let window_posx = (self.start as f32 / self.num_of_samples as f32) * navigator_width;
+        let window_width = ((self.end - self.start) as f32 / self.num_of_samples as f32) * navigator_width;
 
+        if !self.panning {
+            self.navigator_window.set_left(state, Length::Pixels(window_posx)).set_width(state, Length::Pixels(window_width));           
+        }
+
+        // let mut path = Path::new();
+        // path.rect(window_posx, navigator_posy, window_width, navigator_height);
+        // canvas.fill_path(
+        //     &mut path,
+        //     Paint::color(femtovg::Color::rgba(120, 120, 120, 100)),
+        // );
+        // canvas.stroke_path(&mut path, Paint::color(femtovg::Color::rgba(200, 200, 200, 100)));
+
+
+        // Draw playhead
+        let playhead = self.controller.playhead() as f64;
+
+        let pixels_per_sample = 1.0 / self.samples_per_pixel as f32;
+        let playheadx = x + pixels_per_sample * (playhead as f32 - self.start as f32);
+
+        let mut path = Path::new();
+        if self.follow_playhead && self.start > 0 {
+            path.move_to(x + w/2.0, y);
+            path.line_to(x + w/2.0, y + h);
+        } else {
+            path.move_to(playheadx.floor(), y);
+            path.line_to(playheadx.floor(), y + h);                
+        }
+        let mut paint = Paint::color(femtovg::Color::rgba(50, 200, 50, 255));
+        paint.set_line_width(1.0);
+        paint.set_anti_alias(false);
+        canvas.stroke_path(
+            &mut path,
+            paint,
+        );
+
+        // Draw navigator playhead
+        let playheadx = navigator_posx + (navigator_width / self.num_of_samples as f32) * playhead as f32;
+
+        let mut path = Path::new();
+        path.move_to(playheadx.floor(), navigator_posy);
+        path.line_to(playheadx.floor(), navigator_posy + navigator_height);                
+        let mut paint = Paint::color(femtovg::Color::rgba(50, 200, 50, 255));
+        paint.set_line_width(1.0);
+        paint.set_anti_alias(false);
+        canvas.stroke_path(
+            &mut path,
+            paint,
+        );
+
+
+        // Draw cursor
+        if self.cursor > self.start && self.cursor < self.end {
+            let mut path = Path::new();
+            path.move_to((x + cursor_pos).floor(), y);
+            path.line_to((x + cursor_pos).floor(), y + h);
+            let mut paint = Paint::color(femtovg::Color::rgba(255, 50, 50, 255));
+            paint.set_line_width(1.0);
+            paint.set_anti_alias(false);
+            canvas.stroke_path(
+                &mut path,
+                paint,
+            );
+        }
+
+        let cursorx = navigator_posx + (navigator_width / self.num_of_samples as f32) * self.cursor as f32;
+
+        let mut path = Path::new();
+        path.move_to((navigator_posx + cursorx).round(), navigator_posy);
+        path.line_to((navigator_posx + cursorx).round(), navigator_posy + navigator_height);
+        let mut paint = Paint::color(femtovg::Color::rgba(255, 50, 50, 255));
+        paint.set_line_width(1.0);
+        paint.set_anti_alias(false);
+        canvas.stroke_path(
+            &mut path,
+            paint,
+        );
+
+        
 
 
         // Reset the playhead when it reaches the end of the file
         let playhead = self.controller.playhead() as f64;
         self.playhead = playhead as usize;
-        if let Some(file) = self.controller.file.as_ref() {
-            if playhead as usize > file.num_samples {
+
+        let loop_end = if self.select != self.cursor {
+            self.select
+        } else {
+            self.num_of_samples
+        };
+
+        
+        // if self.playhead > loop_end {
+        //     if self.should_loop {
+        //         let cursor_time = self.cursor as f64 / self.sample_rate;
+        //         self.controller.seek(cursor_time);
+        //         self.playhead = self.cursor;                
+        //     } else {
+        //         state.insert_event(Event::new(AppEvent::Stop).target(entity));
+        //     }
+        // }
+
+        if self.should_loop {
+            if self.playhead > loop_end 
+            {
+                let cursor_time = self.cursor as f64 / self.sample_rate;
+                self.controller.seek(cursor_time);
+                self.playhead = self.cursor;
+            }
+        } else {
+            if self.playhead > self.num_of_samples {
                 state.insert_event(Event::new(AppEvent::Stop).target(entity));
             }
         }
+        
+        // if let Some(file) = self.controller.file.as_ref() {
+        //     if playhead as usize > file.num_samples {
+        //         state.insert_event(Event::new(AppEvent::Stop).target(entity));
+        //     }
+        // }
 
         // Update the playhead time display
         if self.is_playing {
             let time = self.playhead as f32 / self.sample_rate as f32;
             let time_value: TimeValue = time.into();
-            let time_string = format!("Playhead: {}", time_value);
+            let time_string = format!("{}", time_value);
             self.playhead_label.set_text(state, &time_string);
         }
 
         // Move the waveform if following the playhead
-        if self.is_playing && self.follow_playhead {
+        if self.follow_playhead {
             //println!("playhead: {} {}", self.playhead, self.samples_per_pixel as usize);
-            if self.playhead % self.samples_per_pixel == 0 {
+            //if self.playhead % self.samples_per_pixel == 0 {
                 //println!("playhead: {}", playhead);
                 let playhead_pos_pixel = w / 2.0;
                 let offset = self.playhead as i32 - (playhead_pos_pixel * self.samples_per_pixel as f32) as i32;
@@ -1257,9 +1746,12 @@ impl EventHandler for AppWidget {
 
                 self.end = new_end.min(self.num_of_samples - 1);
                 self.start = new_start.max(0).min(self.end);                
-            }
+            //}
 
         }
+
+
+        //println!("amount: {}", self.waveform_left.data.len() * 2);
     }
 }
 
@@ -1277,9 +1769,9 @@ impl ZoomDropdown {
 }
 
 impl BuildHandler for ZoomDropdown {
-    type Ret = Entity;
+    type Ret = (Entity, Entity, Entity);
     fn on_build(&mut self, state: &mut State, entity: Entity) -> Self::Ret {
-        self.dropdown.on_build(state, entity).2
+        self.dropdown.on_build(state, entity)
     }
 }
 
@@ -1289,12 +1781,37 @@ impl EventHandler for ZoomDropdown {
 
         if let Some(app_event) = event.message.downcast::<AppEvent>() {
             match app_event {
-                AppEvent::SetZoomLevel(val) => {
+                AppEvent::SetZoomLevel(val,_) => {
                     self.dropdown.label.set_text(state, &(((441.0 / SAMPLES_PER_PIXEL[*val] as f32)).to_string() + "X"));
                 }
 
                 _=> {}
             }
         }
+    }
+}
+
+pub struct ScrollBar {
+
+}
+
+impl ScrollBar {
+    pub fn new() -> Self {
+        Self {
+
+        }
+    }
+}
+
+impl BuildHandler for ScrollBar {
+    type Ret = Entity;
+    fn on_build(&mut self, state: &mut State, entity: Entity) -> Self::Ret {
+        entity.set_element(state, "scrollbar")
+    }
+}
+
+impl EventHandler for ScrollBar {
+    fn on_event(&mut self, state: &mut State, entity: Entity, event: &mut Event) {
+        
     }
 }

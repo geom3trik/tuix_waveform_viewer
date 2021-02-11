@@ -42,6 +42,7 @@ label.info {
     height: 30px;
     color: white;
     text-justify: left;
+    font-size: xx-large
 }
 
 radio_list {
@@ -87,13 +88,6 @@ radio_list>radio_button:checked {
     border-bottom-right-radius: 3px;
 }
 
-button.volume {
-    width: 40px;
-    height: 30px;
-    background-color: #5a5a5a;
-    color: white;
-    border-radius: 3px;
-}
 
 .transport {
     flex-direction: row;
@@ -116,25 +110,25 @@ button.volume {
     background-color: #454545;
 }
 
-.transport>checkbox {
+/* .transport>checkbox {
     width: 40px;
     height: 30px;
     background-color: #5a5a5a;
     color: white;
     border-radius: 0px;
-}
+} */
 
-.transport>checkbox:hover {
+/* .transport>checkbox:hover {
     background-color: #696969;
-}
+} */
 
 .transport>checkbox:active {
     background-color: #454545;
 }
 
-.transport>button.play {
+/* .transport>button.play {
     color: #ff5e1a;
-}
+} */
 
 .zoom_controls {
     margin: 10px;
@@ -200,13 +194,37 @@ slider.volume>.thumb {
     border-radius: 9.5px;
 }
 
-checkbox.snap {
+checkbox {
     width: 40px;
     height: 30px;
+    background-color: #5a5a5a;
+}
+
+checkbox.snap {
     border-radius: 3px;
+}
+
+checkbox.loop {
+    border-radius: 0px;
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+checkbox:hover {
     background-color: #646464;
+}
+
+checkbox.loop:checked {
+    background-color:#ff5e1a;
 }
 
 checkbox.snap:checked {
     background-color:#ff5e1a;
+}
+
+
+
+.navigator_window {
+    background-color: gray;
+    opacity: 0.5;
 }
