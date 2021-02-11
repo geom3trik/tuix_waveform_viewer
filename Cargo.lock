@@ -255,9 +255,9 @@ checksum = "fff857943da45f546682664a79488be82e69e43c1a7a2307679ab9afb3a66d2e"
 
 [[package]]
 name = "clang-sys"
-version = "1.0.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0659001ab56b791be01d4b729c44376edc6718cf389a502e579b77b758f3296c"
+checksum = "5cb92721cb37482245ed88428f72253ce422b3b4ee169c70a0642521bb5db4cc"
 dependencies = [
  "glob",
  "libc",
@@ -736,7 +736,7 @@ dependencies = [
 [[package]]
 name = "femtovg"
 version = "0.1.1"
-source = "git+https://github.com/femtovg/femtovg?branch=master#033fd1a859b411379130de12961cd4291a714c46"
+source = "git+https://github.com/femtovg/femtovg?branch=master#9ba9422be4e7543984b3d2b755e09d8b3d6bd7dc"
 dependencies = [
  "bitflags",
  "fnv",
@@ -1315,9 +1315,9 @@ dependencies = [
 
 [[package]]
 name = "native-dialog"
-version = "0.5.2"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f491dab19c26687b897fcb4ecaa984fc87a7dd5a21d69f48eab41e254116981"
+checksum = "b797805fe732ea368a288e73c313952309287b8b775a13530d858b77cfe5c1cd"
 dependencies = [
  "cocoa 0.24.0",
  "dirs",
@@ -1325,6 +1325,7 @@ dependencies = [
  "objc-foundation",
  "objc_id",
  "once_cell",
+ "raw-window-handle",
  "thiserror",
  "wfd",
  "which",
@@ -2387,6 +2388,7 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2395,6 +2397,7 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "bimap",
  "cssparser",
@@ -2410,6 +2413,7 @@ dependencies = [
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "femtovg",
  "glutin",

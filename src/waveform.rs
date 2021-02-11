@@ -69,7 +69,12 @@ impl Waveform {
                         .max_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
                         .unwrap();
                     let v_mean: f32 = (chunk.iter().map(|s| s*s).sum::<f32>() / chunk.len() as f32).sqrt();
-                    self.data[last + idx] = (to_u8(v_min), to_u8(v_max), to_u8(v_mean))
+                    if last + idx < self.data.len() {
+                        self.data[last + idx] = (to_u8(v_min), to_u8(v_max), to_u8(v_mean))
+                    } else {
+                        self.data.push((to_u8(v_min), to_u8(v_max), to_u8(v_mean)));
+                    }
+                    
                 }                
             }         
         }
