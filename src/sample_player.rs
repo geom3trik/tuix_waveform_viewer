@@ -71,7 +71,6 @@ impl SamplePlayer {
 
     #[inline]
     pub fn advance(&mut self, context: &mut PlaybackContext) {
-        
         while let Some(msg) = self.rx.pop() {
             match msg {
                 Message::Seek(pos) => {
@@ -115,7 +114,9 @@ impl SamplePlayer {
                     + (self.playhead() + context.buffer_size).min(file.num_samples);
                 context.get_output(channel)[0..(end - start)]
                     .copy_from_slice(&file.data[start..end]);
-                context.get_output(channel)[0..(end - start)].iter_mut().for_each(|sample| *sample = *sample * self.volume);
+                context.get_output(channel)[0..(end - start)]
+                    .iter_mut()
+                    .for_each(|sample| *sample = *sample * self.volume);
             }
             self.playhead
                 .fetch_add(context.buffer_size, Ordering::SeqCst);

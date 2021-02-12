@@ -21,10 +21,8 @@ impl<'a> PlaybackContext<'a> {
 
 /// start the audio stream
 pub fn audio_stream(mut main_callback: impl FnMut(PlaybackContext) + Send + 'static) -> Stream {
-    
-    
     println!("Audio Stream");
-    
+
     let host = cpal::default_host();
     let output_device = host.default_output_device().expect("no output found");
     let config = output_device

@@ -736,7 +736,7 @@ dependencies = [
 [[package]]
 name = "femtovg"
 version = "0.1.1"
-source = "git+https://github.com/femtovg/femtovg?branch=master#9ba9422be4e7543984b3d2b755e09d8b3d6bd7dc"
+source = "git+https://github.com/femtovg/femtovg?branch=master#cf816ff6e9b6ad45478dd1e94cdb82ac73f93c13"
 dependencies = [
  "bitflags",
  "fnv",
@@ -1787,9 +1787,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.8"
+version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "991431c3519a3f36861882da93630ce66b52918dcf1b8e2fd66b397fc96f28df"
+checksum = "c3d0b9745dc2debf507c8422de05d7226cc1f0644216dfdfead988f9b1ab32a7"
 dependencies = [
  "proc-macro2",
 ]
@@ -2388,7 +2388,6 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2397,7 +2396,6 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "bimap",
  "cssparser",
@@ -2413,7 +2411,6 @@ dependencies = [
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "femtovg",
  "glutin",

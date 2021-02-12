@@ -14,7 +14,6 @@ pub struct AudioFile {
 }
 
 impl AudioFile {
-
     /// return a buffer of samples corresponding to a channel in the audio file
     #[allow(dead_code)]
     pub fn get_channel(&self, idx: usize) -> &'_ [f32] {
