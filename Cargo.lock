@@ -2388,7 +2388,7 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
+source = "git+https://github.com/geom3trik/tuix?rev=07ae28e785a4ba30951de27c5b49a1188c94925d#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2397,7 +2397,7 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
+source = "git+https://github.com/geom3trik/tuix?rev=07ae28e785a4ba30951de27c5b49a1188c94925d#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "bimap",
  "cssparser",
@@ -2413,7 +2413,7 @@ dependencies = [
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?branch=develop#07ae28e785a4ba30951de27c5b49a1188c94925d"
+source = "git+https://github.com/geom3trik/tuix?rev=07ae28e785a4ba30951de27c5b49a1188c94925d#07ae28e785a4ba30951de27c5b49a1188c94925d"
 dependencies = [
  "femtovg",
  "glutin",
