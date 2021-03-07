@@ -124,12 +124,6 @@ version = "0.1.0"
 source = "git+https://github.com/glowcoil/basedrop.git#435dba1a7d7e207f7f72e6498851675bfbb98950"
 
 [[package]]
-name = "bimap"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3528c4b6f81eb2aadd3504da4ddc5bf5caec1b4aaf0d9dccfb8aaf2850f5b39c"
-
-[[package]]
 name = "bindgen"
 version = "0.56.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -861,15 +855,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f6503fe142514ca4799d4c26297c4248239fe8838d827db6bd6065c6ed29a6ce"
 
 [[package]]
-name = "gl"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a94edab108827d67608095e269cf862e60d920f144a5026d3dbcfd8b877fb404"
-dependencies = [
- "gl_generator",
-]
-
-[[package]]
 name = "gl_generator"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1434,40 +1419,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b7a8e9be5e039e2ff869df49155f1c06bd01ade2117ec783e56ab0932b67a8f"
-dependencies = [
- "num-bigint",
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
-name = "num-bigint"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e9a41747ae4633fce5adffb4d2e81ffc5e89593cb19917f8fb2cc5ff76507bf"
-dependencies = [
- "autocfg",
- "num-integer",
- "num-traits",
-]
-
-[[package]]
-name = "num-complex"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "747d632c0c558b87dbabbe6a82f3b4ae03720d0646ac5b7b4dae89394be5f2c5"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "num-derive"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1506,7 +1457,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg",
- "num-bigint",
  "num-integer",
  "num-traits",
 ]
@@ -2388,7 +2338,7 @@ checksum = "62ddb402ac6c2af6f7a2844243887631c4e94b51585b229fcfddb43958cd55ca"
 [[package]]
 name = "tuix"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?rev=07ae28e785a4ba30951de27c5b49a1188c94925d#07ae28e785a4ba30951de27c5b49a1188c94925d"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#b21984d82aa5ef6b1cb3349ae0f07386a04b410f"
 dependencies = [
  "tuix_core",
  "tuix_glutin",
@@ -2397,23 +2347,19 @@ dependencies = [
 [[package]]
 name = "tuix_core"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?rev=07ae28e785a4ba30951de27c5b49a1188c94925d#07ae28e785a4ba30951de27c5b49a1188c94925d"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#b21984d82aa5ef6b1cb3349ae0f07386a04b410f"
 dependencies = [
- "bimap",
  "cssparser",
  "femtovg",
  "fnv",
- "gl",
- "glutin",
- "image",
  "keyboard-types",
- "num",
+ "num-traits",
 ]
 
 [[package]]
 name = "tuix_glutin"
 version = "0.1.0"
-source = "git+https://github.com/geom3trik/tuix?rev=07ae28e785a4ba30951de27c5b49a1188c94925d#07ae28e785a4ba30951de27c5b49a1188c94925d"
+source = "git+https://github.com/geom3trik/tuix?branch=develop#b21984d82aa5ef6b1cb3349ae0f07386a04b410f"
 dependencies = [
  "femtovg",
  "glutin",

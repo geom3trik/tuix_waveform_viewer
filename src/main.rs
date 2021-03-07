@@ -110,7 +110,7 @@ fn main() -> Result<(), PlayStreamError> {
         
         // Import the stylsheet
         state
-            .insert_stylesheet("src/theme.css")
+            .add_stylesheet("src/theme.css")
             .expect("Failed to load stylesheet");
 
         // Set the window background color
@@ -1306,7 +1306,7 @@ impl EventHandler for AppWidget {
                         6 => self.zoom_6,
                         7 => self.zoom_7,
                         8 => self.zoom_8,
-                        _=> Entity::new(0,0),
+                        _=> Entity::new(0),
                     };
 
                     // Send an event that will be intercepted by the radio list to change the zoom selection
