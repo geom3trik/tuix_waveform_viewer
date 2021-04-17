@@ -9,7 +9,7 @@
 .app>.footer {
     flex-direction: row;
     height: 50px;
-    justify-content: flex-end;
+    /* justify-content: flex-end; */
     align-items: center;
 }
 
@@ -37,12 +37,19 @@ button.open:active {
     background-color: #cc3d00;
 }
 
-label.info {
+label.timecode {
     width: 200px;
     height: 30px;
     color: white;
     text-justify: left;
     font-size: xx-large
+}
+
+label.info {
+    width: 100px;
+    height: 30px;
+    color: white;
+    text-justify: left;
 }
 
 radio_list {
@@ -227,4 +234,20 @@ checkbox.snap:checked {
 .navigator_window {
     background-color: gray;
     opacity: 0.5;
+}
+
+level_bar {
+    padding: 2px;
+    justify-content: flex-end;
+}
+
+level_bar>.front {
+    background-color: #253175;
+    height: 100%;
+
+}
+
+button:focus {
+    border-width: 2px;
+    border-color: black;
 }

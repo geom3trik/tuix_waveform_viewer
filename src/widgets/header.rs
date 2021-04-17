@@ -1,12 +1,9 @@
 
-use super::app_event::{*, self};
-use super::icons::*;
+
 use tuix::*;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum InfoEvent {
-    SetTimeLabel(String),
-}
+use super::app_event::*;
+use super::icons::*;
 
 pub struct Header {
     play_button: Entity,
@@ -32,6 +29,7 @@ impl BuildHandler for Header {
                 builder
                     .set_text("Open")
                     .set_margin(Length::Pixels(10.0))
+                    .set_tooltip("Open and load a wav audio file")
                     .class("open")
             });
 
@@ -45,6 +43,7 @@ impl BuildHandler for Header {
                 builder
                     .set_text(ICON_TO_START)
                     .set_font("Icons")
+                    .set_tooltip("Move playhead to start of clip (Home)")
                     .class("first")
             });
 
@@ -55,19 +54,31 @@ impl BuildHandler for Header {
             .with_icon_checked(ICON_PLAY)
             .with_icon_unchecked(ICON_PAUSE)
             .build(state, transport, |builder| {
-                builder.set_text(ICON_PLAY).set_font("Icons").class("play")
+                builder
+                    .set_text(ICON_PLAY)
+                    .set_font("Icons")
+                    .set_tooltip("Play/Pause the audio clip (Space)")
+                    .class("play")
             });
 
         // Stop button
         Button::new()
             .on_press(Event::new(AppEvent::Stop))
             .build(state, transport, |builder| {
-                builder.set_text(ICON_STOP).set_font("Icons")
+                builder
+                    .set_text(ICON_STOP)
+                    .set_font("Icons")
+                    .set_tooltip("Stop playback of the audio clip (S)")
             });
 
         // To end button
-        Button::new().build(state, transport, |builder| {
-            builder.set_text(ICON_TO_END).set_font("Icons")
+        Button::new()
+            .on_press(Event::new(AppEvent::SeekRight))
+            .build(state, transport, |builder| {
+                builder
+                    .set_text(ICON_TO_END)
+                    .set_font("Icons")
+                    .set_tooltip("Move playhead to end of clip (End)")
         });
 
         // Loop checkbox
@@ -77,11 +88,19 @@ impl BuildHandler for Header {
             .with_icon_checked(ICON_LOOP)
             .with_icon_unchecked(ICON_LOOP)
             .build(state, transport, |builder| {
-                builder.set_font("Icons").class("loop").class("last")
+                builder
+                    .set_font("Icons")
+                    .set_tooltip("Loop the current selection or clip")
+                    .class("loop")
+                    .class("last")
             });
 
+        // Playhead position label
         self.playhead_label = Label::new("00''00'00.0").build(state, entity, |builder| {
-            builder.class("info").set_margin(Length::Pixels(10.0))
+            builder
+                .class("timecode")
+                .set_margin(Length::Pixels(10.0))
+                .set_width(Length::Pixels(110.0))
         });
 
         // Mute/Unmute checkbox
@@ -91,12 +110,15 @@ impl BuildHandler for Header {
             .with_icon_checked(ICON_SOUND)
             .with_icon_unchecked(ICON_MUTE)
             .build(state, entity, |builder| {
-                builder.set_font("Icons").class("snap")
+                builder
+                    .set_font("Icons")
+                    .set_tooltip("Mute/Unmute")
+                    .class("snap")
             });
 
         // Volume slider
         Slider::new()
-            .on_change(move |value| Event::new(AppEvent::Volume(value)))
+            .on_change(move |value| Event::new(AppEvent::Volume(value)).target(entity))
             .build(state, entity, |builder| builder.class("volume"));
 
         // Channels selector
@@ -106,14 +128,14 @@ impl BuildHandler for Header {
         RadioButton::new()
             .on_checked(Event::new(AppEvent::SwicthChannel(ChannelMode::Left)).target(entity))
             .build(state, channels, |builder| {
-                builder.set_text("L").class("first")
+                builder.set_text("L").set_tooltip("Display the left channel waveform").class("first")
             })
             .set_checked(state, true);
 
         // Right channel button
         RadioButton::new()
             .on_checked(Event::new(AppEvent::SwicthChannel(ChannelMode::Right)).target(entity))
-            .build(state, channels, |builder| builder.set_text("R"));
+            .build(state, channels, |builder| builder.set_tooltip("Display the right channel waveform").set_text("R"));
 
         // Both channels button
         RadioButton::new()
@@ -121,6 +143,7 @@ impl BuildHandler for Header {
             .build(state, channels, |builder| {
                 builder
                     .set_text("L + R")
+                    .set_tooltip("Display the left and right channel waveforms")
                     .class("last")
                     .set_width(Length::Pixels(60.0))
             });
@@ -132,14 +155,14 @@ impl BuildHandler for Header {
         RadioButton::new()
             .on_checked(Event::new(AppEvent::SwitchUnits(UnitsMode::Linear)).target(entity))
             .build(state, units, |builder| {
-                builder.set_text("Mag").class("first")
+                builder.set_text("Mag").set_tooltip("Display the waveform in linear scale").class("first")
             })
             .set_checked(state, true);
 
         // Decibel units button
         RadioButton::new()
             .on_checked(Event::new(AppEvent::SwitchUnits(UnitsMode::Decibel)).target(entity))
-            .build(state, units, |builder| builder.set_text("dB").class("last"));
+            .build(state, units, |builder| builder.set_text("dB").set_tooltip("Display the waveform in logarithmic dB scale").class("last"));
 
         entity.set_element(state, "header")
     }

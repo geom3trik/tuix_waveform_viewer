@@ -105,7 +105,7 @@ impl SamplePlayer {
                 self.state = PlayerState::Stopped;
                 return;
             }
-            for channel in 0..context.num_channels.max(file.num_channels) {
+            for channel in 0..context.num_channels.min(file.num_channels) {
                 if !self.active[channel] {
                     continue;
                 }

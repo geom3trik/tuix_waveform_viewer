@@ -24,6 +24,16 @@ pub enum ZoomMode {
     Cursor,
     Mouse,
 }
+
+// Events used to update the time display labels
+#[derive(Debug, Clone, PartialEq)]
+pub enum InfoEvent {
+    SetTimeLabel(String),
+    SetCursorLabel(String),
+    SetSelectLabel(String),
+    SetFileNameLabel(String),
+    SetTooltip(String),
+}
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppEvent {
     OpenFileDialog,
