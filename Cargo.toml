@@ -8,8 +8,8 @@ license = "GPLv3"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# tuix = {git = "https://github.com/geom3trik/tuix", rev = "07ae28e785a4ba30951de27c5b49a1188c94925d"}
-tuix = {git = "https://github.com/geom3trik/tuix", branch = "develop"}
+tuix = {git = "https://github.com/geom3trik/tuix", rev = "b21984d82aa5ef6b1cb3349ae0f07386a04b410f"}
+# tuix = {git = "https://github.com/geom3trik/tuix", branch = "develop"}
 # tuix = {path = "../tuix"}
 native-dialog = "0.5.4"
 femtovg = {git = "https://github.com/femtovg/femtovg", branch = "master"}
